@@ -38,7 +38,7 @@ type Writer struct {
  ************************************************************/
 
 type NetChannelService struct {
-    Port int16
+    Port int
     Flags int
     Path string
 }
@@ -47,7 +47,7 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, error) {
+func CreateNetCPServer(path string, port int, flags int) (*NetChannelService, error) {
     var io_server = &NetChannelService{
         Port: port,
         Flags: flags,
@@ -55,7 +55,7 @@ func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, 
     }
 
     http.HandleFunc(io_server.Path, requestHandler)
-    if err := http.ListenAndServe(":" + string(io_server.Path), nil); err != nil {
+    if err := http.ListenAndServe(":" + string(io_server.Port), nil); err != nil {
         return nil, err
     }
 
@@ -69,12 +69,12 @@ func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, 
 
 type NetChannelClient struct {
     URI string
-    Port int16
+    Port int
     Flags int
     Connected bool
 }
 
-func BuildNetCPChannel(URI string, port int16, flags int) (*NetChannelClient, error) {
+func BuildNetCPChannel(URI string, port int, flags int) (*NetChannelClient, error) {
     var io_channel = &NetChannelClient{
         URI: URI,
         Port: port,

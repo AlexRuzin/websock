@@ -33,14 +33,14 @@ const RUN_CLIENT_TEST                bool = false
 /* Configuration */
 const CONTROLLER_DOMAIN                string = "127.0.0.1"
 const CONTROLLER_PATH                string = "/gate.php"
-const CONTROLLER_PORT                int16 = 80
+const CONTROLLER_PORT                int = 80
 
 func TestMainChannel(t *testing.T) {
     /*
      * Create the channel listener
      */
     D("Building the server processor")
-    D("Starting netcp service on TCP\\" + string(CONTROLLER_PORT))
+    D("Starting netcp service on [TCP] port: " + string(CONTROLLER_PORT))
     service, err := CreateNetCPServer(    CONTROLLER_PATH, /* /gate.php */
                                          CONTROLLER_PORT, /* 80 */
                                             0)
