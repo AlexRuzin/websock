@@ -23,14 +23,14 @@
 package netcp
 
 import (
-	"net/http"
+    "net/http"
 )
 
 /*
  * Writer objects
  */
 type Writer struct {
-	s int
+    s int
 }
 
 /************************************************************
@@ -38,9 +38,9 @@ type Writer struct {
  ************************************************************/
 
 type NetChannelService struct {
-	Port int16
-	Flags int
-	Path string
+    Port int16
+    Flags int
+    Path string
 }
 
 func requestHandler(w http.ResponseWriter, r *http.Request) {
@@ -48,18 +48,18 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, error) {
-	var io_server = &NetChannelService{
-		Port: port,
-		Flags: flags,
-		Path: path,
-	}
+    var io_server = &NetChannelService{
+        Port: port,
+        Flags: flags,
+        Path: path,
+    }
 
-	http.HandleFunc(io_server.Path, requestHandler)
-	if err := http.ListenAndServe(":" + string(io_server.Path), nil); err != nil {
-		return nil, err
-	}
+    http.HandleFunc(io_server.Path, requestHandler)
+    if err := http.ListenAndServe(":" + string(io_server.Path), nil); err != nil {
+        return nil, err
+    }
 
-	return io_server, nil
+    return io_server, nil
 }
 
 
@@ -68,19 +68,19 @@ func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, 
  ************************************************************/
 
 type NetChannelClient struct {
-	URI string
-	Port int16
-	Flags int
-	Connected bool
+    URI string
+    Port int16
+    Flags int
+    Connected bool
 }
 
 func BuildNetCPChannel(URI string, port int16, flags int) (*NetChannelClient, error) {
-	var io_channel = &NetChannelClient{
-		URI: URI,
-		Port: port,
-		Flags: 0,
-		Connected: false,
-	}
+    var io_channel = &NetChannelClient{
+        URI: URI,
+        Port: port,
+        Flags: 0,
+        Connected: false,
+    }
 
-	return io_channel, nil
+    return io_channel, nil
 }
