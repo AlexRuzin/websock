@@ -33,8 +33,16 @@ const CONTROLLER_PATH				string = "/gate.php"
 const CONTROLLER_PORT				int16 = 80
 
 func TestMainChannel(t *testing.T) {
+	/*
+	 * Create the channel listener
+	 */
 	D("Building the server processor")
-
+	D("Starting netcp service on TCP/" + string(int(CONTROLLER_PORT)))
+	service, err := CreateNetCPServer(CONTROLLER_PORT, 0)
+	if err != nil || service == nil {
+		D(err.Error())
+		T("Cannot start netcp service")
+	}
 
 	/*
 	 * Generate the client connection
@@ -43,8 +51,8 @@ func TestMainChannel(t *testing.T) {
 
 	var URI = "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH
 	D("Connecting to: " + URI + " on port: " + string(CONTROLLER_PORT))
-	io_channel, err := BuildNetCPChannel(URI, CONTROLLER_PORT, 0)
-	if err != nil || io_channel == nil {
+	client, err := BuildNetCPChannel(URI, CONTROLLER_PORT, 0)
+	if err != nil || client == nil {
 		D(err.Error())
 		T("Cannot build net channel")
 	}
