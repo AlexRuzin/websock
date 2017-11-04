@@ -21,3 +21,25 @@
  */
 
 package netcp
+
+type Writer struct {
+	s int
+}
+
+type NetChannelClient struct {
+	URI string
+	Port int16
+	Flags int
+	Connected bool
+}
+
+func BuildNetCPChannel(URI string, port int16, flags int) (*NetChannelClient, error) {
+	var io_channel = &NetChannelClient{
+		URI: URI,
+		Port: port,
+		Flags: 0,
+		Connected: false,
+	}
+
+	return io_channel, nil
+}
