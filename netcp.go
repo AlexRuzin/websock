@@ -26,6 +26,29 @@ type Writer struct {
 	s int
 }
 
+/************************************************************
+ * netcp Server objects and methods                         *
+ ************************************************************/
+
+type NetChannelService struct {
+	Port int16
+	Flags int
+}
+
+func CreateNetCPServer(port int16, flags int) (*NetChannelService, error) {
+	var io_server = &NetChannelService{
+		Port: port,
+		Flags: flags,
+	}
+
+	return io_server, nil
+}
+
+
+/************************************************************
+ * netcp Client objects and methods                         *
+ ************************************************************/
+
 type NetChannelClient struct {
 	URI string
 	Port int16
