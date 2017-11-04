@@ -21,3 +21,39 @@
  */
 
 package netcp
+
+import (
+	"github.com/AlexRuzin/util"
+	"testing"
+)
+
+/* Configuration */
+const CONTROLLER_DOMAIN				string = "127.0.0.1"
+const CONTROLLER_PATH				string = "/gate.php"
+const CONTROLLER_PORT				int16 = 80
+
+func TestMainChannel(t *testing.T) {
+	D("Building the server processor")
+
+
+	/*
+	 * Generate the client connection
+	 */
+	D("Building the client transporter")
+
+	var URI = "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH
+	D("Connecting to: " + URI + " on port: " + string(CONTROLLER_PORT))
+	io_channel, err := BuildNetCPChannel(URI, CONTROLLER_PORT, 0)
+	if err != nil || io_channel == nil {
+		D(err.Error())
+		T("Cannot build net channel")
+	}
+}
+
+func D(debug string) {
+	util.DebugOut("[+] " + debug)
+}
+
+func T(debug string) {
+	util.ThrowN("[!] " + debug)
+}
