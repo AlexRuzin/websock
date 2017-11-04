@@ -22,6 +22,13 @@
 
 package netcp
 
+import (
+	"net/http"
+)
+
+/*
+ * Writer objects
+ */
 type Writer struct {
 	s int
 }
@@ -33,12 +40,23 @@ type Writer struct {
 type NetChannelService struct {
 	Port int16
 	Flags int
+	Path string
 }
 
-func CreateNetCPServer(port int16, flags int) (*NetChannelService, error) {
+func requestHandler(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, error) {
 	var io_server = &NetChannelService{
 		Port: port,
 		Flags: flags,
+		Path: path,
+	}
+
+	http.HandleFunc(io_server.Path, requestHandler)
+	if err := http.ListenAndServe(":" + string(io_server.Path), nil); err != nil {
+		return nil, err
 	}
 
 	return io_server, nil
