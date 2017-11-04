@@ -23,52 +23,52 @@
 package netcp
 
 import (
-	"github.com/AlexRuzin/util"
-	"testing"
+    "github.com/AlexRuzin/util"
+    "testing"
 )
 
 /* Test configuration */
-const RUN_CLIENT_TEST				bool = false
+const RUN_CLIENT_TEST                bool = false
 
 /* Configuration */
-const CONTROLLER_DOMAIN				string = "127.0.0.1"
-const CONTROLLER_PATH				string = "/gate.php"
-const CONTROLLER_PORT				int16 = 80
+const CONTROLLER_DOMAIN                string = "127.0.0.1"
+const CONTROLLER_PATH                string = "/gate.php"
+const CONTROLLER_PORT                int16 = 80
 
 func TestMainChannel(t *testing.T) {
-	/*
-	 * Create the channel listener
-	 */
-	D("Building the server processor")
-	D("Starting netcp service on TCP\\" + string(CONTROLLER_PORT))
-	service, err := CreateNetCPServer(	CONTROLLER_PATH, /* /gate.php */
-	 									CONTROLLER_PORT, /* 80 */
-											0)
-	if err != nil || service == nil {
-		D(err.Error())
-		T("Cannot start netcp service")
-	}
+    /*
+     * Create the channel listener
+     */
+    D("Building the server processor")
+    D("Starting netcp service on TCP\\" + string(CONTROLLER_PORT))
+    service, err := CreateNetCPServer(    CONTROLLER_PATH, /* /gate.php */
+                                         CONTROLLER_PORT, /* 80 */
+                                            0)
+    if err != nil || service == nil {
+        D(err.Error())
+        T("Cannot start netcp service")
+    }
 
-	if RUN_CLIENT_TEST == true {
-		/*
-	     * Generate the client connection
-	     */
-		D("Building the client transporter")
+    if RUN_CLIENT_TEST == true {
+        /*
+         * Generate the client connection
+         */
+        D("Building the client transporter")
 
-		var URI= "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH
-		D("Connecting to: " + URI + " on port: " + string(CONTROLLER_PORT))
-		client, err := BuildNetCPChannel(URI, CONTROLLER_PORT, 0)
-		if err != nil || client == nil {
-			D(err.Error())
-			T("Cannot build net channel")
-		}
-	}
+        var URI= "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH
+        D("Connecting to: " + URI + " on port: " + string(CONTROLLER_PORT))
+        client, err := BuildNetCPChannel(URI, CONTROLLER_PORT, 0)
+        if err != nil || client == nil {
+            D(err.Error())
+            T("Cannot build net channel")
+        }
+    }
 }
 
 func D(debug string) {
-	util.DebugOut("[+] " + debug)
+    util.DebugOut("[+] " + debug)
 }
 
 func T(debug string) {
-	util.ThrowN("[!] " + debug)
+    util.ThrowN("[!] " + debug)
 }
