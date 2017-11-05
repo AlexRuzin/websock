@@ -23,7 +23,10 @@
 package netcp
 
 import (
+    "fmt"
     "net/http"
+    "strconv"
+    "github.com/AlexRuzin/util"
 )
 
 /*
@@ -40,24 +43,36 @@ type Writer struct {
 type NetChannelService struct {
     Port int16
     Flags int
-    Path string
+    PathRegister string
+    PathComm string
 }
 
-func requestHandler(w http.ResponseWriter, r *http.Request) {
-
+/* Exchanges keys -- builds circuit */
+func requestHandlerRegister(writer http.ResponseWriter, reader *http.Request) {
+    fmt.Fprintf(writer, "Testing Testing %s", reader.URL.Path[:])
 }
 
-func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, error) {
+/* Communication subsystem */
+func requestHandlerComm(writer http.ResponseWriter, reader *http.Request) {
+    fmt.Fprintf(writer, "Testing Testing %s", reader.URL.Path[:])
+}
+
+func CreateNetCPServer(path_register string, path_comm string, port int16, flags int) (*NetChannelService, error) {
     var io_server = &NetChannelService{
         Port: port,
         Flags: flags,
-        Path: path,
+        PathRegister: path_register,
+        PathComm: path_comm,
     }
 
-    http.HandleFunc(io_server.Path, requestHandler)
-    if err := http.ListenAndServe(":" + string(io_server.Port), nil); err != nil {
-        return nil, err
-    }
+    go func(svc *NetChannelService) {
+        http.HandleFunc(io_server.PathRegister, requestHandlerRegister)
+        http.HandleFunc(io_server.PathComm, requestHandlerComm)
+        listen_port := strconv.FormatInt(int64(io_server.Port), 10)
+        if err := http.ListenAndServe(":" + string(listen_port), nil); err != nil {
+            util.ThrowN("panic: Faiilure in loading httpd")
+        }
+    } (io_server)
 
     return io_server, nil
 }
@@ -68,15 +83,17 @@ func CreateNetCPServer(path string, port int16, flags int) (*NetChannelService, 
  ************************************************************/
 
 type NetChannelClient struct {
-    URI string
+    RegisterURI string
+    CommURI string
     Port int16
     Flags int
     Connected bool
 }
 
-func BuildNetCPChannel(URI string, port int16, flags int) (*NetChannelClient, error) {
+func BuildNetCPChannel(registerURI string, commURI string, port int16, flags int) (*NetChannelClient, error) {
     var io_channel = &NetChannelClient{
-        URI: URI,
+        RegisterURI: registerURI,
+        CommURI: commURI,
         Port: port,
         Flags: 0,
         Connected: false,
