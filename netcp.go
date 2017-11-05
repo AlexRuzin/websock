@@ -25,7 +25,6 @@ package netcp
 import (
     "fmt"
     "net/http"
-    "strconv"
     "github.com/AlexRuzin/util"
 )
 
@@ -46,12 +45,7 @@ type NetChannelService struct {
     PathGate string
 }
 
-/* Exchanges keys -- builds circuit */
-func requestHandlerRegister(writer http.ResponseWriter, reader *http.Request) {
-    fmt.Fprintf(writer, "Testing Testing %s", reader.URL.Path[:])
-}
-
-/* Communication subsystem */
+/* Create circuit -OR- process gate requests */
 func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
     fmt.Fprintf(writer, "Testing Testing %s", reader.URL.Path[:])
 }
@@ -65,8 +59,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
 
     go func(svc *NetChannelService) {
         http.HandleFunc(io_server.PathGate, requestHandlerGate)
-        listen_port := strconv.FormatInt(int64(io_server.Port), 10)
-        if err := http.ListenAndServe(":" + string(listen_port), nil); err != nil {
+        if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)), nil); err != nil {
             util.ThrowN("panic: Faiilure in loading httpd")
         }
     } (io_server)

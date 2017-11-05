@@ -28,7 +28,7 @@ import (
 )
 
 /* Test configuration */
-const RUN_CLIENT_TEST                bool = true
+const RUN_CLIENT_TEST                bool = false
 
 /* Configuration */
 const CONTROLLER_DOMAIN              string = "127.0.0.1"
@@ -40,14 +40,14 @@ func TestMainChannel(t *testing.T) {
      * Create the channel listener
      */
     D("Building the server processor")
-    D("Starting netcp service on [TCP] port: " + string(CONTROLLER_PORT))
+    D("Starting netcp service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
     service, err := CreateNetCPServer(   CONTROLLER_PATH_GATE, /* /gate.php */
                                          CONTROLLER_PORT, /* 80 */
                                          0)
     if err != nil || service == nil {
-        D(err.Error())
-        T("Cannot start netcp service")
-    }
+    D(err.Error())
+    T("Cannot start netcp service")
+}
 
     if RUN_CLIENT_TEST == true {
         /*
