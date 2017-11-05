@@ -57,7 +57,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
         PathGate: path_gate,
     }
 
-    go func(svc *NetChannelService) {
+    func(svc *NetChannelService) {
         http.HandleFunc(io_server.PathGate, requestHandlerGate)
         if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)), nil); err != nil {
             util.ThrowN("panic: Faiilure in loading httpd")
