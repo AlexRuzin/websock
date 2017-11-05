@@ -26,6 +26,8 @@ import (
     "fmt"
     "net/http"
     "github.com/AlexRuzin/util"
+    "net/url"
+    "errors"
 )
 
 /*
@@ -57,7 +59,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
         PathGate: path_gate,
     }
 
-    func(svc *NetChannelService) {
+    go func(svc *NetChannelService) {
         http.HandleFunc(io_server.PathGate, requestHandlerGate)
         if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)), nil); err != nil {
             util.ThrowN("panic: Faiilure in loading httpd")
@@ -73,19 +75,34 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
  ************************************************************/
 
 type NetChannelClient struct {
-    GateURI string
+    InputURI string
     Port int16
     Flags int
     Connected bool
+    Path string
+    Host string
+    URL *url.URL
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
+    url, err := url.Parse(gate_uri)
+    if err != nil {
+        return nil, err
+    }
+    if url.Scheme != "http" {
+        return nil, errors.New("error: HTTP scheme must not use TLS")
+    }
+
     var io_channel = &NetChannelClient{
-        GateURI: gate_uri,
+        URL: url,
+        InputURI: gate_uri,
         Port: port,
         Flags: 0,
         Connected: false,
+        Path: url.Path,
+        Host: url.Host,
     }
 
     return io_channel, nil
 }
+
