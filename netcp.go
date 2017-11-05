@@ -43,8 +43,7 @@ type Writer struct {
 type NetChannelService struct {
     Port int16
     Flags int
-    PathRegister string
-    PathComm string
+    PathGate string
 }
 
 /* Exchanges keys -- builds circuit */
@@ -53,21 +52,19 @@ func requestHandlerRegister(writer http.ResponseWriter, reader *http.Request) {
 }
 
 /* Communication subsystem */
-func requestHandlerComm(writer http.ResponseWriter, reader *http.Request) {
+func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
     fmt.Fprintf(writer, "Testing Testing %s", reader.URL.Path[:])
 }
 
-func CreateNetCPServer(path_register string, path_comm string, port int16, flags int) (*NetChannelService, error) {
+func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
     var io_server = &NetChannelService{
         Port: port,
         Flags: flags,
-        PathRegister: path_register,
-        PathComm: path_comm,
+        PathGate: path_gate,
     }
 
     go func(svc *NetChannelService) {
-        http.HandleFunc(io_server.PathRegister, requestHandlerRegister)
-        http.HandleFunc(io_server.PathComm, requestHandlerComm)
+        http.HandleFunc(io_server.PathGate, requestHandlerGate)
         listen_port := strconv.FormatInt(int64(io_server.Port), 10)
         if err := http.ListenAndServe(":" + string(listen_port), nil); err != nil {
             util.ThrowN("panic: Faiilure in loading httpd")
@@ -83,17 +80,15 @@ func CreateNetCPServer(path_register string, path_comm string, port int16, flags
  ************************************************************/
 
 type NetChannelClient struct {
-    RegisterURI string
-    CommURI string
+    GateURI string
     Port int16
     Flags int
     Connected bool
 }
 
-func BuildNetCPChannel(registerURI string, commURI string, port int16, flags int) (*NetChannelClient, error) {
+func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
     var io_channel = &NetChannelClient{
-        RegisterURI: registerURI,
-        CommURI: commURI,
+        GateURI: gate_uri,
         Port: port,
         Flags: 0,
         Connected: false,

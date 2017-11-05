@@ -32,8 +32,7 @@ const RUN_CLIENT_TEST                bool = true
 
 /* Configuration */
 const CONTROLLER_DOMAIN              string = "127.0.0.1"
-const CONTROLLER_PATH_REGISTER       string = "/register.php"
-const CONTROLLER_PATH_COMM           string = "/comm.php"
+const CONTROLLER_PATH_GATE           string = "/gate.php"
 const CONTROLLER_PORT                int16 = 80
 
 func TestMainChannel(t *testing.T) {
@@ -42,8 +41,7 @@ func TestMainChannel(t *testing.T) {
      */
     D("Building the server processor")
     D("Starting netcp service on [TCP] port: " + string(CONTROLLER_PORT))
-    service, err := CreateNetCPServer(   CONTROLLER_PATH_REGISTER, /* /register.php */
-                                         CONTROLLER_PATH_COMM, /* /comm.php */
+    service, err := CreateNetCPServer(   CONTROLLER_PATH_GATE, /* /gate.php */
                                          CONTROLLER_PORT, /* 80 */
                                          0)
     if err != nil || service == nil {
@@ -57,9 +55,8 @@ func TestMainChannel(t *testing.T) {
          */
         D("Building the client transporter")
 
-        reg_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_REGISTER
-        comm_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_COMM
-        client, err := BuildNetCPChannel(reg_uri, comm_uri, CONTROLLER_PORT, 0)
+        gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
+        client, err := BuildNetCPChannel(gate_uri, CONTROLLER_PORT, 0)
         if err != nil || client == nil {
             D(err.Error())
             T("Cannot build net channel")
