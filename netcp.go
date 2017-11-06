@@ -28,7 +28,13 @@ import (
     "github.com/AlexRuzin/util"
     "net/url"
     "errors"
+    "strings"
 )
+
+/*
+ * Configuration
+ */
+const RSA_KEY_PAIR_LEN = 2048
 
 /*
  * Writer objects
@@ -61,8 +67,8 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
 
     go func(svc *NetChannelService) {
         http.HandleFunc(io_server.PathGate, requestHandlerGate)
-        if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)), nil); err != nil {
-            util.ThrowN("panic: Faiilure in loading httpd")
+        if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)),nil); err != nil {
+            util.ThrowN("panic: Failure in loading httpd")
         }
     } (io_server)
 
@@ -104,5 +110,46 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
     }
 
     return io_channel, nil
+}
+
+/*
+ * Check if the TCP port is reachcable, then attempt to determine
+ *  if our service is running on it
+ */
+func (f *NetChannelClient) InitializeCircuit() error {
+    /*
+     * Generate a private/public key pair. Create a pool of the public key,
+     *  along with an md5 of the public key appended to the end. The server
+     *  returns its own public key with an md5 as well.
+     *
+     * The md5 sent by the client will identify the connection and act as
+     *  the key in the hash table.
+     */
+
+
+
+
+
+
+    form := url.Values{}
+    form.Encode()
+
+    hc := http.Client{}
+    req, err := http.NewRequest("POST", f.InputURI, strings.NewReader(form.Encode()))
+    if err != nil {
+        return err
+    }
+
+    req.PostForm = form
+    req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+    resp, err := hc.Do(req)
+    if err != nil {
+        return err
+    }
+    if resp.Status != "200 OK" {
+        return errors.New("HTTP 200 OK not returned")
+    }
+
+    return nil
 }
 
