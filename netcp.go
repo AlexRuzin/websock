@@ -26,9 +26,12 @@ import (
     "fmt"
     "net/http"
     "github.com/AlexRuzin/util"
+    "github.com/wsddn/go-ecdh"
     "net/url"
     "errors"
     "strings"
+    "crypto/elliptic"
+    "crypto/rand"
 )
 
 /*
@@ -126,9 +129,16 @@ func (f *NetChannelClient) InitializeCircuit() error {
      *  the key in the hash table.
      */
 
+    /*
+     * Generate our keys
+     */
+    curve := ecdh.NewEllipticECDH(elliptic.P384())
+    _, clientPublic, err := curve.GenerateKey(rand.Reader)
+    if err != nil {
+        return err
+    }
 
-
-
+    _ := curve.Marshal(clientPublic)
 
 
     form := url.Values{}
