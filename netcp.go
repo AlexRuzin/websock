@@ -23,7 +23,6 @@
 package netcp
 
 import (
-    "fmt"
     "net/http"
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
@@ -34,10 +33,10 @@ import (
     "crypto/rand"
     "os"
     "bytes"
-    "unicode"
     "hash/crc64"
     "crypto/md5"
-    "io"
+    "encoding/base64"
+    "time"
 )
 
 /*
@@ -66,7 +65,7 @@ type NetChannelService struct {
 
 /* Create circuit -OR- process gate requests */
 func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
-    fmt.Fprintf(writer, "Testing Testing %s", reader.URL.Path[:])
+    util.DebugOut("[+] Incoming message")
     os.Exit(0)
 }
 
@@ -136,6 +135,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     form := url.Values{}
+    form.Add("t", base64.StdEncoding.EncodeToString(post_pool))
     form.Encode()
 
     hc := http.Client{}
@@ -144,12 +144,14 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
-    req.PostForm = form
     req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
     resp, err := hc.Do(req)
     if err != nil {
         return err
     }
+
+    time.Sleep(0)
+
     if resp.Status != "200 OK" {
         return errors.New("HTTP 200 OK not returned")
     }
@@ -180,11 +182,11 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
     copy(marshal_encrypted, pubKeyMarshalled)
     counter := 0
     for k, _ := range marshal_encrypted {
-        marshal_encrypted[k] ^= tmp[counter]
-        counter += 1
-        if counter > len(tmp) {
+        if counter == len(tmp) {
             counter = 0
         }
+        marshal_encrypted[k] ^= tmp[counter]
+        counter += 1
     }
     pool.Write(marshal_encrypted)
     pool_sum := md5.Sum(pool.Bytes())
