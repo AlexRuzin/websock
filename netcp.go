@@ -32,12 +32,20 @@ import (
     "strings"
     "crypto/elliptic"
     "crypto/rand"
+    "os"
+    "bytes"
+    "unicode"
+    "hash/crc64"
+    "crypto/md5"
+    "io"
 )
 
 /*
  * Configuration
  */
 const RSA_KEY_PAIR_LEN = 2048
+const TX_ECDH_BUF_XOR_KEY_LEN = 32 // 32-bit XOR key encrypted the marshalled
+                                   //  ecdh public key
 
 /*
  * Writer objects
@@ -59,6 +67,7 @@ type NetChannelService struct {
 /* Create circuit -OR- process gate requests */
 func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
     fmt.Fprintf(writer, "Testing Testing %s", reader.URL.Path[:])
+    os.Exit(0)
 }
 
 func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
@@ -70,6 +79,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
 
     go func(svc *NetChannelService) {
         http.HandleFunc(io_server.PathGate, requestHandlerGate)
+        util.DebugOut("[+] Handling request for path :" + svc.PathGate)
         if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd")
         }
@@ -120,26 +130,10 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
  *  if our service is running on it
  */
 func (f *NetChannelClient) InitializeCircuit() error {
-    /*
-     * Generate a private/public key pair. Create a pool of the public key,
-     *  along with an md5 of the public key appended to the end. The server
-     *  returns its own public key with an md5 as well.
-     *
-     * The md5 sent by the client will identify the connection and act as
-     *  the key in the hash table.
-     */
-
-    /*
-     * Generate our keys
-     */
-    curve := ecdh.NewEllipticECDH(elliptic.P384())
-    _, clientPublic, err := curve.GenerateKey(rand.Reader)
-    if err != nil {
+    post_pool, err := f.genTxPool()
+    if err != nil || len(post_pool) < 1 {
         return err
     }
-
-    _ := curve.Marshal(clientPublic)
-
 
     form := url.Values{}
     form.Encode()
@@ -161,5 +155,41 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     return nil
+}
+
+func (f *NetChannelClient) genTxPool() ([]byte, error) {
+    /*
+     * Generate the ECDH keys based on the EllipticP384 Curve
+     */
+    curve := ecdh.NewEllipticECDH(elliptic.P384())
+    _, clientPublicKey, err := curve.GenerateKey(rand.Reader)
+    if err != nil {
+        return nil, err
+    }
+
+    /******************************************************************************************
+     * Tranmis the public key ECDH key to server. The transmission buffer contains:           *
+     *  [8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2]  *
+     ******************************************************************************************/
+    var pubKeyMarshalled = curve.Marshal(clientPublicKey)
+    var pool = bytes.Buffer{}
+    tmp := make([]byte, crc64.Size)
+    rand.Read(tmp)
+    pool.Write(tmp)
+    marshal_encrypted := make([]byte, len(pubKeyMarshalled))
+    copy(marshal_encrypted, pubKeyMarshalled)
+    counter := 0
+    for k, _ := range marshal_encrypted {
+        marshal_encrypted[k] ^= tmp[counter]
+        counter += 1
+        if counter > len(tmp) {
+            counter = 0
+        }
+    }
+    pool.Write(marshal_encrypted)
+    pool_sum := md5.Sum(pool.Bytes())
+    pool.Write(pool_sum[:])
+
+    return pool.Bytes(), nil
 }
 
