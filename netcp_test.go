@@ -28,7 +28,8 @@ import (
 )
 
 /* Test configuration */
-const RUN_CLIENT_TEST                bool = false
+const RUN_CLIENT_TEST                bool = true
+const RUN_SERVER_TEST                bool = false
 
 /* Configuration */
 const CONTROLLER_DOMAIN              string = "127.0.0.1"
@@ -56,10 +57,15 @@ func TestMainChannel(t *testing.T) {
         D("Building the client transporter")
 
         gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-        client, err := BuildNetCPChannel(gate_uri, CONTROLLER_PORT, 0)
+        client, err := BuildNetCPChannel(gate_uri, CONTROLLER_PORT,0)
         if err != nil || client == nil {
             D(err.Error())
             T("Cannot build net channel")
+        }
+
+        if err := client.InitializeCircuit(); err != nil {
+            D(err.Error())
+            T("Service is not responding")
         }
     }
 }
