@@ -31,20 +31,17 @@ import (
     "strings"
     "crypto/elliptic"
     "crypto/rand"
-    "os"
     "bytes"
     "hash/crc64"
     "crypto/md5"
     "encoding/base64"
-    "time"
+    "os"
 )
 
 /*
  * Configuration
  */
-const RSA_KEY_PAIR_LEN = 2048
-const TX_ECDH_BUF_XOR_KEY_LEN = 32 // 32-bit XOR key encrypted the marshalled
-                                   //  ecdh public key
+const POST_PARAM_NAME = "l"
 
 /*
  * Writer objects
@@ -65,7 +62,11 @@ type NetChannelService struct {
 
 /* Create circuit -OR- process gate requests */
 func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
-    util.DebugOut("[+] Incoming message")
+    /*
+     * Read in an HTTP request in the following format:
+     *  [8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2]
+     */
+    util.DebugOut("[+] Request received....")
     os.Exit(0)
 }
 
@@ -129,28 +130,33 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
  *  if our service is running on it
  */
 func (f *NetChannelClient) InitializeCircuit() error {
+    /*
+     * Configuration for HTTP communication
+     */
+    const POST_STRING = "POST"
+    const CONTENT_TYPE_STRING = "Content-Type"
+    const CONTENT_TYPE_VALUE_STRING = "application/x-www-form-urlencoded"
+
     post_pool, err := f.genTxPool()
     if err != nil || len(post_pool) < 1 {
         return err
     }
 
     form := url.Values{}
-    form.Add("t", base64.StdEncoding.EncodeToString(post_pool))
+    form.Add(POST_PARAM_NAME, base64.StdEncoding.EncodeToString(post_pool))
     form.Encode()
 
     hc := http.Client{}
-    req, err := http.NewRequest("POST", f.InputURI, strings.NewReader(form.Encode()))
+    req, err := http.NewRequest(POST_STRING, f.InputURI, strings.NewReader(form.Encode()))
     if err != nil {
         return err
     }
 
-    req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+    req.Header.Add(CONTENT_TYPE_STRING, CONTENT_TYPE_VALUE_STRING)
     resp, err := hc.Do(req)
     if err != nil {
         return err
     }
-
-    time.Sleep(0)
 
     if resp.Status != "200 OK" {
         return errors.New("HTTP 200 OK not returned")
