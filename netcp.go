@@ -42,6 +42,14 @@ import (
  * Configuration
  */
 const POST_PARAM_NAME = "l"
+const USE_METHOD_GET = false
+const USE_METHOD_POST = true
+
+/*
+ * Constants
+ */
+const METHOD_GET = "GET"
+const METHOD_POST = "POST"
 
 /*
  * Writer objects
@@ -71,6 +79,10 @@ func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
 }
 
 func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
+    if err := configCheck(); err != nil {
+        return nil, err
+    }
+
     var io_server = &NetChannelService{
         Port: port,
         Flags: flags,
@@ -104,6 +116,10 @@ type NetChannelClient struct {
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
+    if err := configCheck(); err != nil {
+        return nil, err
+    }
+
     url, err := url.Parse(gate_uri)
     if err != nil {
         return nil, err
@@ -133,7 +149,12 @@ func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Configuration for HTTP communication
      */
-    const POST_STRING = "POST"
+    var POST_STRING string
+    if USE_METHOD_POST == true {
+        POST_STRING = METHOD_POST
+    } else {
+        POST_STRING = METHOD_GET
+    }
     const CONTENT_TYPE_STRING = "Content-Type"
     const CONTENT_TYPE_VALUE_STRING = "application/x-www-form-urlencoded"
 
@@ -201,3 +222,10 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
     return pool.Bytes(), nil
 }
 
+func configCheck() error {
+    if USE_METHOD_GET == true && USE_METHOD_POST == true {
+        errors.New("invalid HTTPd METHOD configuration used")
+    }
+
+    return nil
+}
