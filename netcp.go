@@ -35,7 +35,6 @@ import (
     "hash/crc64"
     "crypto/md5"
     "encoding/base64"
-    _"time"
     "io"
     "crypto"
 )
