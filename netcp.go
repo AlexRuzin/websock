@@ -37,6 +37,7 @@ import (
     "encoding/base64"
     "time"
     "io"
+    "crypto"
 )
 
 /*
@@ -207,13 +208,16 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
  ************************************************************/
 
 type NetChannelClient struct {
-    InputURI string
-    Port int16
-    Flags int
-    Connected bool
-    Path string
-    Host string
-    URL *url.URL
+    InputURI        string
+    Port            int16
+    Flags           int
+    Connected       bool
+    Path            string
+    Host            string
+    URL             *url.URL
+    PrivateKey      *crypto.PrivateKey
+    PublicKey       *crypto.PublicKey
+    ServerPublicKey *crypto.PrivateKey
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
@@ -241,6 +245,9 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
         Connected: false,
         Path: main_url.Path,
         Host: main_url.Host,
+        PrivateKey: nil,
+        PublicKey: nil,
+        ServerPublicKey: nil,
     }
 
     return io_channel, nil
@@ -295,10 +302,12 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
      * Generate the ECDH keys based on the EllipticP384 Curve
      */
     curve := ecdh.NewEllipticECDH(elliptic.P384())
-    _, clientPublicKey, err := curve.GenerateKey(rand.Reader)
+    clientPrivateKey, clientPublicKey, err := curve.GenerateKey(rand.Reader)
     if err != nil {
         return nil, err
     }
+    f.PublicKey = clientPublicKey
+    f.PrivateKey = clientPrivateKey
 
     /***********************************************************************************************
      * Tranmis the public key ECDH key to server. The transmission buffer contains:                *
@@ -312,7 +321,7 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
     marshal_encrypted := make([]byte, len(pubKeyMarshalled))
     copy(marshal_encrypted, pubKeyMarshalled)
     counter := 0
-    for k, _ := range marshal_encrypted {
+    for k := range marshal_encrypted {
         if counter == len(tmp) {
             counter = 0
         }
