@@ -35,7 +35,7 @@ import (
     "hash/crc64"
     "crypto/md5"
     "encoding/base64"
-    "time"
+    _"time"
     "io"
     "crypto"
 )
@@ -265,7 +265,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
     form := url.Values{}
     form.Add(POST_PARAM_NAME, base64.StdEncoding.EncodeToString(post_pool))
-    //form.Encode()
+    form.Encode()
 
     /* Perform HTTP TX */
     resp, tx_err := func(method string, URI string, body io.Reader) (response *http.Response, err error) {
@@ -284,11 +284,9 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
         return resp, nil
     } ("POST", f.InputURI, strings.NewReader(form.Encode()))
-    if tx_err != nil {
+    if tx_err != nil && tx_err != io.EOF {
         return tx_err
     }
-
-    time.Sleep(1000)
 
     if resp.Status != "200 OK" {
         return errors.New("HTTP 200 OK not returned")
