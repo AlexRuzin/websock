@@ -65,9 +65,10 @@ type NetChannelService struct {
 type ServerProcessor struct {}
 
 /* Create circuit -OR- process gate requests */
-func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
+func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     serverProcessor := ServerProcessor{}
 
+    /* Get remote client public key structure */
     body_raw, err := reader.GetBody()
     if err != nil {
         serverProcessor.sendBadErrorCode(writer, err)
@@ -75,6 +76,8 @@ func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
     }
     body_raw_vector := make([]byte, reader.ContentLength)
     body_raw.Read(body_raw_vector)
+
+    /* Parse client-side public ECDH key*/
     marshalled, err := serverProcessor.getMarshalledPubKey(body_raw_vector)
     if err != nil || len(marshalled) == 0 {
         serverProcessor.sendBadErrorCode(writer, err)
@@ -188,7 +191,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
     }
 
     go func(svc *NetChannelService) {
-        http.HandleFunc(io_server.PathGate, requestHandlerGate)
+        http.HandleFunc(io_server.PathGate, handleClientRequest)
         util.DebugOut("[+] Handling request for path :" + svc.PathGate)
         if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd")
