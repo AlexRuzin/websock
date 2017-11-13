@@ -95,7 +95,7 @@ func (ServerProcessor) getMarshalledPubKey(buffer []byte) (marshalled []byte, er
     var raw_buffer = bytes.Buffer{}
     raw_buffer.Write(b64_decoded)
 
-    var xor_key = make([]byte, 8)
+    var xor_key = make([]byte, crc64.Size)
     r, err := raw_buffer.Read(xor_key)
     if err != nil || r != len(xor_key) {
         return nil, err
@@ -113,7 +113,36 @@ func (ServerProcessor) getMarshalledPubKey(buffer []byte) (marshalled []byte, er
         return nil, err
     }
 
-    return nil, nil
+    sum_status := func (key []byte, marshal_buf []byte, known_sum []byte) bool {
+        tmp := bytes.Buffer{}
+        tmp.Write(key)
+        tmp.Write(marshal_buf)
+        new_sum := md5.Sum(tmp.Bytes())
+        if bytes.Equal(new_sum[:], known_sum) {
+            return true
+        }
+        return false
+    } (xor_key, marshal_buf, sum)
+    if sum_status == false {
+        return nil, util.ThrowError("Corrupt client ECDH key buffer")
+    }
+
+    out_buf := func (key []byte, pool []byte) []byte {
+        var output = make([]byte, len(pool))
+        copy(output, pool)
+
+        counter := 0
+        for k := range pool {
+            if counter == 8 {
+                counter = 0
+            }
+            output[k] = output[k] ^ key[counter]
+            counter += 1
+        }
+
+        return output
+    } (xor_key, marshal_buf)
+    return out_buf, nil
 }
 
 /* HTTP 500 - Internal Server Error */
