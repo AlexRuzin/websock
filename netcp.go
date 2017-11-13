@@ -306,8 +306,8 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
     if err != nil {
         return nil, err
     }
-    f.PublicKey = clientPublicKey
-    f.PrivateKey = clientPrivateKey
+    f.PublicKey = &clientPublicKey
+    f.PrivateKey = &clientPrivateKey
 
     /***********************************************************************************************
      * Tranmis the public key ECDH key to server. The transmission buffer contains:                *
