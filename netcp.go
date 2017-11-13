@@ -80,6 +80,24 @@ func requestHandlerGate(writer http.ResponseWriter, reader *http.Request) {
         serverProcessor.sendBadErrorCode(writer, err)
         return
     }
+
+    curve := ecdh.NewEllipticECDH(elliptic.P384())
+    clientPrivateKey, _, err := curve.GenerateKey(rand.Reader)
+    if err != nil {
+        serverProcessor.sendBadErrorCode(writer, err)
+        return
+    }
+    clientPublicKey, ok := curve.Unmarshal(marshalled)
+    if !ok {
+        serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
+        return
+    }
+
+    secret, err := curve.GenerateSharedSecret(clientPrivateKey, clientPublicKey)
+    if len(secret) == 0 {
+        serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
+        return
+    }
 }
 
 func (ServerProcessor) getMarshalledPubKey(buffer []byte) (marshalled []byte, err error) {
