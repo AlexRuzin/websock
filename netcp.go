@@ -43,14 +43,6 @@ import (
  * Configuration
  */
 const POST_PARAM_NAME = "l"
-const USE_METHOD_GET = false
-const USE_METHOD_POST = true
-
-/*
- * Constants
- */
-const METHOD_GET = "GET"
-const METHOD_POST = "POST"
 
 /*
  * Writer objects
@@ -175,26 +167,30 @@ type NetChannelClient struct {
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
+    if flags == -1 {
+        return nil, errors.New("error: BuildNetCPChannel: invalid flag: -1")
+    }
+
     if err := configCheck(); err != nil {
         return nil, err
     }
 
-    url, err := url.Parse(gate_uri)
+    main_url, err := url.Parse(gate_uri)
     if err != nil {
         return nil, err
     }
-    if url.Scheme != "http" {
+    if main_url.Scheme != "http" {
         return nil, errors.New("error: HTTP scheme must not use TLS")
     }
 
     var io_channel = &NetChannelClient{
-        URL: url,
+        URL: main_url,
         InputURI: gate_uri,
         Port: port,
         Flags: 0,
         Connected: false,
-        Path: url.Path,
-        Host: url.Host,
+        Path: main_url.Path,
+        Host: main_url.Host,
     }
 
     return io_channel, nil
@@ -205,16 +201,6 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
  *  if our service is running on it
  */
 func (f *NetChannelClient) InitializeCircuit() error {
-    /*
-     * Configuration for HTTP communication
-     */
-    var POST_STRING string
-    if USE_METHOD_POST == true {
-        POST_STRING = METHOD_POST
-    } else {
-        POST_STRING = METHOD_GET
-    }
-
     post_pool, err := f.genTxPool()
     if err != nil || len(post_pool) < 1 {
         return err
@@ -227,7 +213,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     /* Perform HTTP TX */
     resp, tx_err := func(method string, URI string, body io.Reader) (response *http.Response, err error) {
         hc := http.Client{}
-        req, err := http.NewRequest(POST_STRING, f.InputURI, strings.NewReader(form.Encode()))
+        req, err := http.NewRequest("POST", f.InputURI, strings.NewReader(form.Encode()))
         if err != nil {
             return nil, err
         }
@@ -240,7 +226,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
 
         return resp, nil
-    } (POST_STRING, f.InputURI, strings.NewReader(form.Encode()))
+    } ("POST", f.InputURI, strings.NewReader(form.Encode()))
     if tx_err != nil {
         return tx_err
     }
@@ -292,9 +278,5 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
 }
 
 func configCheck() error {
-    if USE_METHOD_GET == true && USE_METHOD_POST == true {
-        errors.New("invalid HTTPd METHOD configuration used")
-    }
-
     return nil
 }
