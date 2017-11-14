@@ -159,7 +159,7 @@ func (ServerProcessor) sendBadErrorCode(writer http.ResponseWriter, err error) {
 }
 
 /* HTTP 200 OK */
-func (ServerProcessor) sendGoodErrorCOde(writer http.ResponseWriter) {
+func (ServerProcessor) sendGoodErrorCode(writer http.ResponseWriter) {
     writer.WriteHeader(http.StatusOK)
     return
 }
