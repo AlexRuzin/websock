@@ -88,18 +88,20 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
  * Check if the TCP port is reachcable, then attempt to determine
  *  if our service is running on it
  */
-func encodeKeyValue (high int) (string) {
-    return base64.StdEncoding.EncodeToString([]byte(util.RandomString(util.RandInt(1, high))))
+func encodeKeyValue (high int) string {
+    return func (h int) string {
+    	return base64.StdEncoding.EncodeToString([]byte(util.RandomString(util.RandInt(1, high))))
+	} (high)
 }
 
 func (f *NetChannelClient) InitializeCircuit() error {
+	/*
+	 * Generate the keypair
+	 */
     post_pool, err := f.genTxPool()
     if err != nil || len(post_pool) < 1 {
         return err
     }
-
-    /* This is the parameter that will hold our secret data */
-
 
     /* generate fake key/value pools */
     var parm_map = make(map[string]string)
