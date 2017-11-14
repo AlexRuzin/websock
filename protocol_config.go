@@ -45,3 +45,13 @@ const POST_BODY_KEY_LEN = 8
  *  the constraints of code logic
  */
 const POST_BODY_JUNK_MAX_PARAMETERS = 8
+
+/*
+ * User-Agent for the HTTP client
+ */
+const HTTP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+
+/*
+ * The standard Content-Type for the client
+ */
+const HTTP_CONTENT_TYPE = "application/x-www-form-urlencoded"
