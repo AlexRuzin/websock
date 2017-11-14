@@ -123,7 +123,9 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     /* Perform HTTP TX */
-    resp, tx_err := func(method string,
+    resp, tx_err := func(
+            client *NetChannelClient,
+            method string,
             URI string,
             m map[string]string) (response *http.Response, err error) {
         req, err := http.NewRequest(method /* POST */, URI, nil)
@@ -136,25 +138,40 @@ func (f *NetChannelClient) InitializeCircuit() error {
             form.Add(k, v)
         }
 
-        /* "application/x-www-form-urlencoded" */
+        /*
+         * "application/x-www-form-urlencoded"
+         *
+         *  Most common ever Content-Type
+         */
         req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
-
         req.Header.Set("Connection", "close")
 
+        /*
+         * "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+         *  (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+         *
+         * Most common ever UA
+         */
         req.Header.Set("User-Agent", HTTP_USER_AGENT)
-        req.Header.Set("Host", URI) // FIXME -- check that the URI is correct for Host!!!
+
+        /* Parse the domain/IP */
+        uri, err := url.Parse(URI)
+        if err != nil {
+            return nil, err
+        }
+        req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
 
         req.URL.RawQuery = form.Encode()
 
-        client := &http.Client{}
-        resp, err := client.Do(req)
+        http_client := &http.Client{}
+        resp, err := http_client.Do(req)
         if err != nil {
             return nil, err
         }
         defer resp.Body.Close()
 
         return resp, nil
-    } ("POST", f.InputURI, parm_map)
+    } (f, HTTP_VERB /* POST */, f.InputURI, parm_map)
     if tx_err != nil && tx_err != io.EOF {
         return tx_err
     }
