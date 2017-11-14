@@ -21,3 +21,8 @@
  */
 
 package netcp
+
+/*
+ * Configuration
+ */
+const POST_PARAM_NAME = "l"
