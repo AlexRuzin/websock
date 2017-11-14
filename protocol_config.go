@@ -55,3 +55,8 @@ const HTTP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5
  * The standard Content-Type for the client
  */
 const HTTP_CONTENT_TYPE = "application/x-www-form-urlencoded"
+
+/*
+ * GET or POST verb when constructing circuit with HTTPd
+ */
+const HTTP_VERB = "POST"
