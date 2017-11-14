@@ -23,9 +23,25 @@
 package netcp
 
 /*
- * Configuration
+ * This is the POST parameter name of our main ECDH public key
+ *  coming in from the client side
  */
-const POST_PARAM_NAME = "l"
-const POST_BODY_VALUE_LEN = 32
-const POST_BODY_KEY_LEN = 4
-const POST_BODY_JUNK_MAX_PARAMETERS = 8 /* Min should be 5 */
+const POST_PARAM_NAME = "q"
+
+/*
+ * The length of the POST parameter values. If -1, the sizes
+ *  will approximate the length of the transmit pool
+ */
+const POST_BODY_VALUE_LEN = -1
+
+/*
+ * The length of the parameter name (key(
+ */
+const POST_BODY_KEY_LEN = 8
+
+/*
+ * The number of garbage parameters. Our useful information
+ *  will be in there somewhere. Minimum should be 3 due to
+ *  the constraints of code logic
+ */
+const POST_BODY_JUNK_MAX_PARAMETERS = 8
