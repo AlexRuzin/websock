@@ -111,7 +111,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
         if POST_BODY_VALUE_LEN != -1 {
             pool = encodeKeyValue(POST_BODY_VALUE_LEN)
         } else {
-            pool = encodeKeyValue(len(string(post_pool)))
+            pool = encodeKeyValue(len(string(post_pool)) * 2)
         }
         key = encodeKeyValue(POST_BODY_KEY_LEN)
 
@@ -136,7 +136,14 @@ func (f *NetChannelClient) InitializeCircuit() error {
             form.Add(k, v)
         }
 
-        req.Header.Set("Content-Type", "text/html; charset=utf-8")
+        /* "application/x-www-form-urlencoded" */
+        req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
+
+        req.Header.Set("Connection", "close")
+
+        req.Header.Set("User-Agent", HTTP_USER_AGENT)
+        req.Header.Set("Host", URI) // FIXME -- check that the URI is correct for Host!!!
+
         req.URL.RawQuery = form.Encode()
 
         client := &http.Client{}
