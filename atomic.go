@@ -107,8 +107,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
     magic_number := num_of_parameters / 2
     for i := num_of_parameters; i != 0; i -= 1 {
-        pool := encodeKeyValue(POST_BODY_VALUE_LEN)
-        key := encodeKeyValue(POST_BODY_KEY_LEN)
+        var pool, key string
+        if POST_BODY_VALUE_LEN != -1 {
+            pool = encodeKeyValue(POST_BODY_VALUE_LEN)
+        } else {
+            pool = encodeKeyValue(len(string(post_pool)))
+        }
+        key = encodeKeyValue(POST_BODY_KEY_LEN)
 
         parm_map[key] = pool
 
@@ -127,8 +132,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
 
         form := req.URL.Query()
-        for range m {
-            form.Add("i", "l")
+        for k, v := range m {
+            form.Add(k, v)
         }
 
         req.Header.Set("Content-Type", "text/html; charset=utf-8")
