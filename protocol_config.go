@@ -26,3 +26,6 @@ package netcp
  * Configuration
  */
 const POST_PARAM_NAME = "l"
+const POST_BODY_VALUE_LEN = 32
+const POST_BODY_KEY_LEN = 4
+const POST_BODY_JUNK_MAX_PARAMETERS = 8 /* Min should be 5 */
