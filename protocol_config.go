@@ -35,7 +35,7 @@ const POST_BODY_KEY_CHARSET = "aielndqor"
 const POST_BODY_VALUE_LEN = -1
 
 /*
- * The length of the parameter name (key(
+ * The length of the parameter name
  */
 const POST_BODY_KEY_LEN = 8
 
