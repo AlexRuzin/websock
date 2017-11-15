@@ -174,6 +174,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
 		// https://groups.google.com/forum/#!topic/golang-nuts/79uAICXtUIs
 		// https://justinas.org/writing-http-middleware-in-go/
 		// https://gist.github.com/emitle/9768411a6b3e07b4e3bf
+		// https://github.com/northbright/go-post-example/blob/master/client/main.go
         req.URL.RawQuery = form.Encode()
         http_client := &http.Client{}
         resp, tx_status := http_client.Do(req)
