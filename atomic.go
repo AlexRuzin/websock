@@ -170,9 +170,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
         //req.Header.Set("Content-Length", string(dump))
 
         /* Encode & transmit */
+		// https://github.com/golang/go/issues/20257
+		// https://groups.google.com/forum/#!topic/golang-nuts/79uAICXtUIs
+		// https://justinas.org/writing-http-middleware-in-go/
         req.URL.RawQuery = form.Encode()
         http_client := &http.Client{}
         resp, tx_status := http_client.Do(req)
+		//defer http.Close()
         util.DebugOut(req.URL.RawQuery)
         if tx_status != nil {
             return nil, tx_status
