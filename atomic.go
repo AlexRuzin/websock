@@ -36,6 +36,7 @@ import (
     "crypto"
     "encoding/base64"
     "github.com/AlexRuzin/util"
+    "net/http/httputil"
 )
 
 /************************************************************
@@ -164,9 +165,12 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
         req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
 
-        req.URL.RawQuery = form.Encode()
-        req.Header.Set("Content-Length", string(len(req.URL.RawQuery)))
+        /* Content-Length */
+        //dump, _ := httputil.DumpRequest(req, true)
+        //req.Header.Set("Content-Length", string(dump))
 
+        /* Encode & transmit */
+        req.URL.RawQuery = form.Encode()
         http_client := &http.Client{}
         resp, tx_status := http_client.Do(req)
         util.DebugOut(req.URL.RawQuery)
