@@ -120,7 +120,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
         parm_map[key] = pool
 
         if i == magic_number {
-            parm_map[POST_PARAM_NAME] = string(post_pool)
+            char_set := []byte(POST_BODY_KEY_CHARSET)
+            parm_map[string(char_set[util.RandInt(0, len(char_set))])] = string(post_pool)
         }
     }
 
@@ -164,11 +165,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
         req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
 
         req.URL.RawQuery = form.Encode()
+        req.Header.Set("Content-Length", string(len(req.URL.RawQuery)))
 
         http_client := &http.Client{}
-        resp, err := http_client.Do(req)
-        if err != nil {
-            return nil, err
+        resp, tx_status := http_client.Do(req)
+        util.DebugOut(req.URL.RawQuery)
+        if tx_status != nil {
+            return nil, tx_status
         }
         defer resp.Body.Close()
 
