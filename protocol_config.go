@@ -23,10 +23,10 @@
 package netcp
 
 /*
- * This is the POST parameter name of our main ECDH public key
- *  coming in from the client side
+ * Any of these characters in the charset may be a the key
+ *  for the client's public key exchange
  */
-const POST_PARAM_NAME = "q"
+const POST_BODY_KEY_CHARSET = "aielndqor"
 
 /*
  * The length of the POST parameter values. If -1, the sizes
