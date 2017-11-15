@@ -30,7 +30,7 @@ import (
 
 /* Test configuration */
 const RUN_CLIENT_TEST                bool = true
-const RUN_SERVER_TEST                bool = true
+const RUN_SERVER_TEST                bool = false
 
 /* Configuration */
 const CONTROLLER_DOMAIN              string = "127.0.0.1"
