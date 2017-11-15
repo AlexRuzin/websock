@@ -36,7 +36,7 @@ import (
     "crypto"
     "encoding/base64"
     "github.com/AlexRuzin/util"
-    "net/http/httputil"
+    _"net/http/httputil"
 )
 
 /************************************************************
