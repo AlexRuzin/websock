@@ -48,6 +48,7 @@ type NetChannelService struct {
     PrivateKey *crypto.PrivateKey
     PublicKey *crypto.PublicKey
     ClientPublicKey *crypto.PublicKey
+    serverProcessor ServerProcessor
 }
 
 // Server processor methods
@@ -55,49 +56,57 @@ type ServerProcessor struct {}
 
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
-    serverProcessor := ServerProcessor{}
-
-    /* Get remote client public key structure */
-    body_raw, err := reader.GetBody()
-    if err != nil {
-        serverProcessor.sendBadErrorCode(writer, err)
-        return
+    service := NetChannelService{
+        Port:  80,
+        Flags: 0,
+        PathGate: reader.URL.Path,
+        PrivateKey: nil,
+        PublicKey: nil,
+        ClientPublicKey: nil,
+        serverProcessor: ServerProcessor{},
     }
-    body_raw_vector := make([]byte, reader.ContentLength)
-    body_raw.Read(body_raw_vector)
+
+    /* Get remote client public key base64 marshalled string */
+    var b64_marshalled_client_pub_key string
 
     /* Parse client-side public ECDH key*/
-    marshalled, err := serverProcessor.getMarshalledPubKey(body_raw_vector)
-    if err != nil || len(marshalled) == 0 {
-        serverProcessor.sendBadErrorCode(writer, err)
+    client_pubkey, err := service.serverProcessor.getClientPublicKey(b64_marshalled_client_pub_key, &service)
+    if err != nil || client_pubkey == nil {
+        service.serverProcessor.sendBadErrorCode(writer, err)
         return
     }
+    service.ClientPublicKey = client_pubkey
 
+    /*
+     * Since the client public key is nominal return generate
+     *  our own keypair
+     */
     curve := ecdh.NewEllipticECDH(elliptic.P384())
-    clientPrivateKey, _, err := curve.GenerateKey(rand.Reader)
+    serverPrivateKey, serverPublicKey, err := curve.GenerateKey(rand.Reader)
     if err != nil {
-        serverProcessor.sendBadErrorCode(writer, err)
+        service.serverProcessor.sendBadErrorCode(writer, err)
         return
     }
-    clientPublicKey, ok := curve.Unmarshal(marshalled)
-    if !ok {
-        serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
-        return
-    }
+    service.PublicKey = &serverPublicKey
+    service.PrivateKey = &serverPrivateKey
 
-    secret, err := curve.GenerateSharedSecret(clientPrivateKey, clientPublicKey)
+    /* Transmit the server public key */
+
+    /* Generate the secret */
+    secret, err := curve.GenerateSharedSecret(service.PrivateKey, service.PublicKey)
     if len(secret) == 0 {
-        serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
+        service.serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
         return
     }
 }
 
-func (ServerProcessor) getMarshalledPubKey(buffer []byte) (marshalled []byte, err error) {
+func (ServerProcessor) getClientPublicKey(buffer string,
+    server *NetChannelService) (pubkey *crypto.PublicKey, err error) {
     /*
      * Read in an HTTP request in the following format:
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])
      */
-    b64_decoded, err := base64.StdEncoding.DecodeString(string(buffer))
+    b64_decoded, err := base64.StdEncoding.DecodeString(buffer)
     if err != nil {
         return nil, err
     }
@@ -137,7 +146,7 @@ func (ServerProcessor) getMarshalledPubKey(buffer []byte) (marshalled []byte, er
         return nil, util.ThrowError("Corrupt client ECDH key buffer")
     }
 
-    out_buf := func (key []byte, pool []byte) []byte {
+    marshalled := func (key []byte, pool []byte) []byte {
         var output = make([]byte, len(pool))
         copy(output, pool)
 
@@ -152,7 +161,15 @@ func (ServerProcessor) getMarshalledPubKey(buffer []byte) (marshalled []byte, er
 
         return output
     } (xor_key, marshal_buf)
-    return out_buf, nil
+
+    curve := ecdh.NewEllipticECDH(elliptic.P384())
+    clientPublicKey, ok := curve.Unmarshal(marshalled)
+    if !ok {
+        return nil, errors.New("unmarshalling failed")
+
+    }
+
+    return &clientPublicKey, nil
 }
 
 /* HTTP 500 - Internal Server Error */
