@@ -34,6 +34,7 @@ import (
     "crypto/md5"
     "hash/crc64"
     "encoding/base64"
+    "crypto"
 )
 
 /************************************************************
@@ -44,6 +45,9 @@ type NetChannelService struct {
     Port int16
     Flags int
     PathGate string
+    PrivateKey *crypto.PrivateKey
+    PublicKey *crypto.PublicKey
+    ClientPublicKey *crypto.PublicKey
 }
 
 // Server processor methods
