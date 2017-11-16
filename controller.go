@@ -40,6 +40,8 @@ import (
 /************************************************************
  * netcp Server objects and methods                         *
  ************************************************************/
+// Server processor methods
+type ServerProcessor struct {}
 
 type NetChannelService struct {
     Port int16
@@ -50,9 +52,6 @@ type NetChannelService struct {
     ClientPublicKey *crypto.PublicKey
     serverProcessor ServerProcessor
 }
-
-// Server processor methods
-type ServerProcessor struct {}
 
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
