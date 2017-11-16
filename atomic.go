@@ -37,6 +37,7 @@ import (
     "encoding/base64"
     "github.com/AlexRuzin/util"
     _"net/http/httputil"
+    "strings"
 )
 
 /************************************************************
@@ -118,12 +119,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
         key = encodeKeyValue(POST_BODY_KEY_LEN)
 
-        parm_map[key] = pool
-
         if i == magic_number {
             char_set := []byte(POST_BODY_KEY_CHARSET)
             parm_map[string(char_set[util.RandInt(0, len(char_set))])] = string(post_pool)
+            continue
         }
+
+        parm_map[key] = pool
     }
 
     /* Perform HTTP TX */
@@ -132,14 +134,15 @@ func (f *NetChannelClient) InitializeCircuit() error {
             method string,
             URI string,
             m map[string]string) (response *http.Response, err error) {
-        req, err := http.NewRequest(method /* POST */, URI, nil)
+        form := url.Values{}
+        for k, v := range m {
+            form.Set(k, v)
+        }
+        form_encoded := form.Encode()
+
+        req, err := http.NewRequest(method /* POST */, URI, strings.NewReader(form_encoded))
         if err != nil {
             return nil, err
-        }
-
-        form := req.URL.Query()
-        for k, v := range m {
-            form.Add(k, v)
         }
 
         /*
@@ -165,17 +168,6 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
         req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
 
-        /* Content-Length */
-        //dump, _ := httputil.DumpRequest(req, true)
-        //req.Header.Set("Content-Length", string(dump))
-
-        /* Encode & transmit */
-		// https://github.com/golang/go/issues/20257
-		// https://groups.google.com/forum/#!topic/golang-nuts/79uAICXtUIs
-		// https://justinas.org/writing-http-middleware-in-go/
-		// https://gist.github.com/emitle/9768411a6b3e07b4e3bf
-		// https://github.com/northbright/go-post-example/blob/master/client/main.go
-        req.URL.RawQuery = form.Encode()
         http_client := &http.Client{}
         resp, tx_status := http_client.Do(req)
 		//defer http.Close()
