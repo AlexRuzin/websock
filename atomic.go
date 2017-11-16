@@ -54,7 +54,7 @@ type NetChannelClient struct {
     URL             *url.URL
     PrivateKey      *crypto.PrivateKey
     PublicKey       *crypto.PublicKey
-    ServerPublicKey *crypto.PrivateKey
+    ServerPublicKey *crypto.PublicKey
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
@@ -170,8 +170,6 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
         http_client := &http.Client{}
         resp, tx_status := http_client.Do(req)
-		//defer http.Close()
-        util.DebugOut(req.URL.RawQuery)
         if tx_status != nil {
             return nil, tx_status
         }
