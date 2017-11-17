@@ -67,11 +67,40 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
 
     /* Get remote client public key base64 marshalled string */
     var b64_marshalled_client_pub_key string
+    if err := reader.ParseForm(); err != nil {
+        util.DebugOut(err.Error())
+        return
+    }
+    const cs = POST_BODY_KEY_CHARSET
+
+
+
+
+    var value_found = false
+    for i := len(cs) - 1; i != 0 && value_found == false ; i -= 1 {
+        key := cs[i]
+        for c := range reader.Form {
+            value := reader.Form[c]
+            tmp := value[key]
+
+            if tmp != "" {
+                b64_marshalled_client_pub_key = tmp
+                value_found = true
+                break
+            }
+        }
+    }
+
+
+    tmp := reader.Form["t"]
+    util.DebugOut(tmp[0])
+
 
     /* Parse client-side public ECDH key*/
     client_pubkey, err := service.serverProcessor.getClientPublicKey(b64_marshalled_client_pub_key, &service)
     if err != nil || client_pubkey == nil {
         service.serverProcessor.sendBadErrorCode(writer, err)
+        util.DebugOut(err.Error())
         return
     }
     service.ClientPublicKey = client_pubkey
