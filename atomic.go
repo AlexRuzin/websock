@@ -209,8 +209,6 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
     xor_key := make([]byte, crc64.Size)
     rand.Read(xor_key)
     pool.Write(xor_key)
-    util.DebugOut("xor key:")
-    util.DebugOutHex(xor_key)
     marshal_encrypted := make([]byte, len(pubKeyMarshalled))
     copy(marshal_encrypted, pubKeyMarshalled)
     counter := 0
@@ -223,8 +221,6 @@ func (f *NetChannelClient) genTxPool() ([]byte, error) {
     }
     pool.Write(marshal_encrypted)
     pool_sum := md5.Sum(pool.Bytes())
-    util.DebugOut("Checksum for pool:")
-    util.DebugOutHex(pool_sum[:])
     pool.Write(pool_sum[:])
 
     b64_buf := base64.StdEncoding.EncodeToString(pool.Bytes())
