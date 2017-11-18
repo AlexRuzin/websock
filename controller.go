@@ -86,7 +86,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     }
 
     /* Parse client-side public ECDH key*/
-    client_pubkey, err := service.serverProcessor.getClientPublicKey(*b64_marshalled_client_pub_key, &service)
+    client_pubkey, elliptic, err := service.serverProcessor.getClientPublicKey(*b64_marshalled_client_pub_key, &service)
     if err != nil || client_pubkey == nil {
         service.serverProcessor.sendBadErrorCode(writer, err)
         util.DebugOut(err.Error())
@@ -98,8 +98,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
      * Since the client public key is nominal return generate
      *  our own keypair
      */
-    curve := ecdh.NewEllipticECDH(elliptic.P384())
-    serverPrivateKey, serverPublicKey, err := curve.GenerateKey(rand.Reader)
+    serverPrivateKey, serverPublicKey, err := elliptic.GenerateKey(rand.Reader)
     if err != nil {
         service.serverProcessor.sendBadErrorCode(writer, err)
         return
@@ -110,22 +109,24 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     /* Transmit the server public key */
 
     /* Generate the secret */
-    secret, err := curve.GenerateSharedSecret(service.PrivateKey, service.ClientPublicKey)
+    secret, err := elliptic.GenerateSharedSecret(service.PrivateKey, service.ClientPublicKey)
     if len(secret) == 0 {
         service.serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
         return
     }
+
+    util.DebugOut("done")
 }
 
 func (ServerProcessor) getClientPublicKey(buffer string,
-    server *NetChannelService) (pubkey *crypto.PublicKey, err error) {
+    server *NetChannelService) (pubkey *crypto.PublicKey, curve ecdh.ECDH, err error) {
     /*
      * Read in an HTTP request in the following format:
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])
      */
     b64_decoded, err := base64.StdEncoding.DecodeString(buffer)
     if err != nil {
-        return nil, err
+        return nil, nil, err
     }
     var xor_key = make([]byte, crc64.Size)
     copy(xor_key, b64_decoded[:crc64.Size])
@@ -137,7 +138,7 @@ func (ServerProcessor) getClientPublicKey(buffer string,
     copy(sum_buffer, b64_decoded[:len(b64_decoded) - md5.Size])
     new_sum := md5.Sum(sum_buffer)
     if !bytes.Equal(new_sum[:], sum) {
-        return nil, errors.New("error: Data integrity mismatch")
+        return nil, nil, errors.New("error: Data integrity mismatch")
     }
 
     copy(marshal_xor, b64_decoded[crc64.Size:len(b64_decoded) - md5.Size])
@@ -157,14 +158,14 @@ func (ServerProcessor) getClientPublicKey(buffer string,
         return output
     } (xor_key, marshal_xor)
 
-    curve := ecdh.NewEllipticECDH(elliptic.P384())
-    clientPublicKey, ok := curve.Unmarshal(marshalled)
+    ecurve := ecdh.NewEllipticECDH(elliptic.P384())
+    clientPublicKey, ok := ecurve.Unmarshal(marshalled)
     if !ok {
-        return nil, errors.New("unmarshalling failed")
+        return nil, nil, errors.New("unmarshalling failed")
 
     }
 
-    return &clientPublicKey, nil
+    return &clientPublicKey, ecurve,nil
 }
 
 /* HTTP 500 - Internal Server Error */
