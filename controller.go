@@ -24,7 +24,7 @@ package netcp
 
 import (
     "errors"
-    "io"
+    _"io"
     "bytes"
     "net/http"
     "github.com/AlexRuzin/util"
@@ -66,38 +66,27 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     }
 
     /* Get remote client public key base64 marshalled string */
-    var b64_marshalled_client_pub_key string
     if err := reader.ParseForm(); err != nil {
         util.DebugOut(err.Error())
         return
     }
     const cs = POST_BODY_KEY_CHARSET
-
-
-
-
-    var value_found = false
-    for i := len(cs) - 1; i != 0 && value_found == false ; i -= 1 {
-        key := cs[i]
-        for c := range reader.Form {
-            value := reader.Form[c]
-            tmp := value[key]
-
-            if tmp != "" {
-                b64_marshalled_client_pub_key = tmp
-                value_found = true
+    var b64_marshalled_client_pub_key *string = nil
+    for key := range reader.Form {
+        for i := len(POST_BODY_KEY_CHARSET); i != 0; i -= 1 {
+            var tmp_key = string(cs[i - 1])
+            if tmp_key == key {
+                b64_marshalled_client_pub_key = &reader.Form[key][0]
                 break
             }
         }
+        if b64_marshalled_client_pub_key != nil {
+            break
+        }
     }
 
-
-    tmp := reader.Form["t"]
-    util.DebugOut(tmp[0])
-
-
     /* Parse client-side public ECDH key*/
-    client_pubkey, err := service.serverProcessor.getClientPublicKey(b64_marshalled_client_pub_key, &service)
+    client_pubkey, err := service.serverProcessor.getClientPublicKey(*b64_marshalled_client_pub_key, &service)
     if err != nil || client_pubkey == nil {
         service.serverProcessor.sendBadErrorCode(writer, err)
         util.DebugOut(err.Error())
@@ -121,7 +110,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     /* Transmit the server public key */
 
     /* Generate the secret */
-    secret, err := curve.GenerateSharedSecret(service.PrivateKey, service.PublicKey)
+    secret, err := curve.GenerateSharedSecret(service.PrivateKey, service.ClientPublicKey)
     if len(secret) == 0 {
         service.serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
         return
@@ -138,42 +127,20 @@ func (ServerProcessor) getClientPublicKey(buffer string,
     if err != nil {
         return nil, err
     }
-
-    var raw_buffer = bytes.Buffer{}
-    raw_buffer.Write(b64_decoded)
-
     var xor_key = make([]byte, crc64.Size)
-    r, err := raw_buffer.Read(xor_key)
-    if err != nil || r != len(xor_key) {
-        return nil, err
-    }
-
-    var marshal_buf = make([]byte, raw_buffer.Len() - md5.Size)
-    r, err = raw_buffer.Read(marshal_buf)
-    if err != nil || r != (len(b64_decoded) - md5.Size) {
-        return nil, err
-    }
-
+    copy(xor_key, b64_decoded[:crc64.Size])
+    var marshal_xor = make([]byte, len(b64_decoded) - crc64.Size - md5.Size)
     var sum = make([]byte, md5.Size)
-    r, err = raw_buffer.Read(sum)
-    if err != io.EOF || r != md5.Size {
-        return nil, err
+    copy(sum, b64_decoded[len(xor_key) + len(marshal_xor):])
+
+    sum_buffer := make([]byte, len(b64_decoded) - md5.Size)
+    copy(sum_buffer, b64_decoded[:len(b64_decoded) - md5.Size])
+    new_sum := md5.Sum(sum_buffer)
+    if !bytes.Equal(new_sum[:], sum) {
+        return nil, errors.New("error: Data integrity mismatch")
     }
 
-    sum_status := func (key []byte, marshal_buf []byte, known_sum []byte) bool {
-        tmp := bytes.Buffer{}
-        tmp.Write(key)
-        tmp.Write(marshal_buf)
-        new_sum := md5.Sum(tmp.Bytes())
-        if bytes.Equal(new_sum[:], known_sum) {
-            return true
-        }
-        return false
-    } (xor_key, marshal_buf, sum)
-    if sum_status == false {
-        return nil, util.ThrowError("Corrupt client ECDH key buffer")
-    }
-
+    copy(marshal_xor, b64_decoded[crc64.Size:len(b64_decoded) - md5.Size])
     marshalled := func (key []byte, pool []byte) []byte {
         var output = make([]byte, len(pool))
         copy(output, pool)
@@ -188,7 +155,7 @@ func (ServerProcessor) getClientPublicKey(buffer string,
         }
 
         return output
-    } (xor_key, marshal_buf)
+    } (xor_key, marshal_xor)
 
     curve := ecdh.NewEllipticECDH(elliptic.P384())
     clientPublicKey, ok := curve.Unmarshal(marshalled)
