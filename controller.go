@@ -24,17 +24,16 @@ package netcp
 
 import (
     "errors"
-    _"io"
     "bytes"
     "net/http"
     "github.com/AlexRuzin/util"
-    "github.com/wsddn/go-ecdh"
+    "crypto"
     "crypto/elliptic"
+    "github.com/wsddn/go-ecdh"
     "crypto/rand"
     "crypto/md5"
     "hash/crc64"
     "encoding/base64"
-    "crypto"
 )
 
 /************************************************************
@@ -71,22 +70,22 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         return
     }
     const cs = POST_BODY_KEY_CHARSET
-    var b64_marshalled_client_pub_key *string = nil
+    var marshalled_client_pub_key *string = nil
     for key := range reader.Form {
         for i := len(POST_BODY_KEY_CHARSET); i != 0; i -= 1 {
             var tmp_key = string(cs[i - 1])
             if tmp_key == key {
-                b64_marshalled_client_pub_key = &reader.Form[key][0]
+                marshalled_client_pub_key = &reader.Form[key][0]
                 break
             }
         }
-        if b64_marshalled_client_pub_key != nil {
+        if marshalled_client_pub_key != nil {
             break
         }
     }
 
     /* Parse client-side public ECDH key*/
-    client_pubkey, elliptic, err := service.serverProcessor.getClientPublicKey(*b64_marshalled_client_pub_key, &service)
+    client_pubkey, curve, err := service.serverProcessor.getClientPublicKey(*marshalled_client_pub_key, &service)
     if err != nil || client_pubkey == nil {
         service.serverProcessor.sendBadErrorCode(writer, err)
         util.DebugOut(err.Error())
@@ -98,7 +97,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
      * Since the client public key is nominal return generate
      *  our own keypair
      */
-    serverPrivateKey, serverPublicKey, err := elliptic.GenerateKey(rand.Reader)
+    serverPrivateKey, serverPublicKey, err := curve.GenerateKey(rand.Reader)
     if err != nil {
         service.serverProcessor.sendBadErrorCode(writer, err)
         return
@@ -109,9 +108,9 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     /* Transmit the server public key */
 
     /* Generate the secret */
-    secret, err := elliptic.GenerateSharedSecret(service.PrivateKey, service.ClientPublicKey)
+    secret, err := curve.GenerateSharedSecret(serverPrivateKey, client_pubkey)
     if len(secret) == 0 {
-        service.serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
+        service.serverProcessor.sendBadErrorCode(writer, errors.New("error: Failed to generate a shared secret key"))
         return
     }
 
