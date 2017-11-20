@@ -155,7 +155,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
          *  Most common ever Content-Type
          */
         req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
-        req.Header.Set("Connection", "close")
+        //req.Header.Set("Connection", "close")
 
         /*
          * "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
