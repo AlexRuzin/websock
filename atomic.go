@@ -190,6 +190,9 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return err
+    }
     encoded, err := base64.StdEncoding.DecodeString(string(body))
     if err != nil {
         return err
@@ -197,6 +200,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
     var xor_key = make([]byte, crc64.Size)
     copy(xor_key, encoded)
+    var xord_marshalled = make([]byte, len(encoded) - crc64.Size)
+    copy(xord_marshalled, encoded[crc64.Size:])
     marshalled := func (xor_key []byte, encoded []byte) []byte {
         output := make([]byte, len(encoded))
         copy(output, encoded)
@@ -210,7 +215,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
             counter += 1
         }
         return output
-    } (xor_key, encoded)
+    } (xor_key, xord_marshalled)
 
     serverPubKey, ok := curve.Unmarshal(marshalled)
     if !ok {
