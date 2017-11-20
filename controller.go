@@ -33,6 +33,7 @@ import (
     "crypto/md5"
     "hash/crc64"
     "encoding/base64"
+    "fmt"
 )
 
 /************************************************************
@@ -56,8 +57,6 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         PathGate: reader.URL.Path,
         serverProcessor: ServerProcessor{},
     }
-
-    defer reader.Body.Close()
 
     /* Get remote client public key base64 marshalled string */
     if err := reader.ParseForm(); err != nil {
@@ -124,6 +123,8 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
 
     util.DebugOut("Server-side secret: ")
     util.DebugOutHex(secret)
+    defer reader.Body.Close()
+    util.SleepSeconds(1)
 }
 
 func (ServerProcessor) getClientPublicKey(buffer string,
@@ -207,7 +208,8 @@ func (ServerProcessor) sendPubKey(writer http.ResponseWriter, marshalled []byte)
     writer.Header().Set("Connection", "close")
     writer.WriteHeader(http.StatusOK)
 
-    writer.Write([]byte(tx_pool))
+    //writer.Write([]byte(tx_pool))
+    fmt.Fprintln(writer, tx_pool)
 
     return nil
 }
