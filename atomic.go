@@ -33,11 +33,11 @@ import (
     "hash/crc64"
     "crypto/md5"
     "crypto/rand"
-    "crypto"
     "encoding/base64"
     "github.com/AlexRuzin/util"
     _"net/http/httputil"
     "strings"
+    "io/ioutil"
 )
 
 /************************************************************
@@ -52,9 +52,6 @@ type NetChannelClient struct {
     Path            string
     Host            string
     URL             *url.URL
-    PrivateKey      *crypto.PrivateKey
-    PublicKey       *crypto.PublicKey
-    ServerPublicKey *crypto.PublicKey
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
@@ -78,9 +75,6 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
         Connected: false,
         Path: main_url.Path,
         Host: main_url.Host,
-        PrivateKey: nil,
-        PublicKey: nil,
-        ServerPublicKey: nil,
     }
 
     return io_channel, nil
@@ -97,10 +91,20 @@ func encodeKeyValue (high int) string {
 }
 
 func (f *NetChannelClient) InitializeCircuit() error {
-	/*
-	 * Generate the keypair
+    /*
+     * Generate the ECDH keys based on the EllipticP384 Curve/create keypair
+     */
+    curve := ecdh.NewEllipticECDH(elliptic.P384())
+    clientPrivateKey, clientPublicKey, err := curve.GenerateKey(rand.Reader)
+    if err != nil {
+        return err
+    }
+    var pubKeyMarshalled = curve.Marshal(clientPublicKey)
+
+    /*
+	 * Generate the b64([xor][marshalled][md5sum]) buffer
 	 */
-    post_pool, err := f.genTxPool()
+    post_pool, err := f.genTxPool(pubKeyMarshalled)
     if err != nil || len(post_pool) < 1 {
         return err
     }
@@ -185,33 +189,58 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return errors.New("HTTP 200 OK not returned")
     }
 
+    body, err := ioutil.ReadAll(resp.Body)
+    encoded, err := base64.StdEncoding.DecodeString(string(body))
+    if err != nil {
+        return err
+    }
+
+    var xor_key = make([]byte, crc64.Size)
+    copy(xor_key, encoded)
+    marshalled := func (xor_key []byte, encoded []byte) []byte {
+        output := make([]byte, len(encoded))
+        copy(output, encoded)
+        counter := 0
+        for k := range output {
+            if counter == len(xor_key) {
+                counter = 0
+            }
+
+            output[k] ^= xor_key[counter]
+            counter += 1
+        }
+        return output
+    } (xor_key, encoded)
+
+    serverPubKey, ok := curve.Unmarshal(marshalled)
+    if !ok {
+        return errors.New("error: Failed to unmarshal server-side public key")
+    }
+
+    /* Generate the secret finally */
+    secret, err := curve.GenerateSharedSecret(clientPrivateKey, serverPubKey)
+    if err != nil || len(secret) == 0 {
+        return err
+    }
+
+    util.DebugOut("Client-side secret: ")
+    util.DebugOutHex(secret)
+
     return nil
 }
 
-func (f *NetChannelClient) genTxPool() ([]byte, error) {
-    /*
-     * Generate the ECDH keys based on the EllipticP384 Curve
-     */
-    curve := ecdh.NewEllipticECDH(elliptic.P384())
-    clientPrivateKey, clientPublicKey, err := curve.GenerateKey(rand.Reader)
-    if err != nil {
-        return nil, err
-    }
-    f.PublicKey = &clientPublicKey
-    f.PrivateKey = &clientPrivateKey
-
+func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
     /***********************************************************************************************
      * Tranmis the public key ECDH key to server. The transmission buffer contains:                *
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])  *
      ***********************************************************************************************/
-    var pubKeyMarshalled = curve.Marshal(clientPublicKey)
     var pool = bytes.Buffer{}
     xor_key := make([]byte, crc64.Size)
     rand.Read(xor_key)
     pool.Write(xor_key)
     marshal_encrypted := make([]byte, len(pubKeyMarshalled))
     copy(marshal_encrypted, pubKeyMarshalled)
-    counter := 0
+    counter := 0 /* FIXME -- controller.go also has a similar function */
     for k := range marshal_encrypted {
         if counter == len(xor_key) {
             counter = 0
