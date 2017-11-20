@@ -52,6 +52,7 @@ type NetChannelClient struct {
     Path            string
     Host            string
     URL             *url.URL
+    Secret          []byte
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
@@ -75,6 +76,7 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
         Connected: false,
         Path: main_url.Path,
         Host: main_url.Host,
+        Secret: nil,
     }
 
     return io_channel, nil
@@ -177,7 +179,6 @@ func (f *NetChannelClient) InitializeCircuit() error {
         if tx_status != nil {
             return nil, tx_status
         }
-        defer resp.Body.Close()
 
         return resp, nil
     } (f, HTTP_VERB /* POST */, f.InputURI, parm_map)
@@ -188,6 +189,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     if resp.Status != "200 OK" {
         return errors.New("HTTP 200 OK not returned")
     }
+    defer resp.Body.Close()
 
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
@@ -228,8 +230,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
-    util.DebugOut("Client-side secret: ")
-    util.DebugOutHex(secret)
+
 
     return nil
 }

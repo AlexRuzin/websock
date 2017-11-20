@@ -47,6 +47,7 @@ type NetChannelService struct {
     Flags int
     PathGate string
     serverProcessor ServerProcessor
+    Secret []byte
 }
 
 /* Create circuit -OR- process gate requests */
@@ -56,7 +57,10 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         Flags: 0,
         PathGate: reader.URL.Path,
         serverProcessor: ServerProcessor{},
+        Secret: nil,
     }
+
+    defer reader.Body.Close()
 
     /* Get remote client public key base64 marshalled string */
     if err := reader.ParseForm(); err != nil {
@@ -121,10 +125,11 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         return
     }
 
+    service.Secret = make([]byte, len(secret))
+    copy(service.Secret, secret)
+
     util.DebugOut("Server-side secret: ")
-    util.DebugOutHex(secret)
-    defer reader.Body.Close()
-    util.SleepSeconds(1)
+    util.DebugOutHex(service.Secret)
 }
 
 func (ServerProcessor) getClientPublicKey(buffer string,
@@ -208,7 +213,6 @@ func (ServerProcessor) sendPubKey(writer http.ResponseWriter, marshalled []byte)
     writer.Header().Set("Connection", "close")
     writer.WriteHeader(http.StatusOK)
 
-    //writer.Write([]byte(tx_pool))
     fmt.Fprintln(writer, tx_pool)
 
     return nil
