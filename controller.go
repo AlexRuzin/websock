@@ -34,20 +34,34 @@ import (
     "hash/crc64"
     "encoding/base64"
     "fmt"
+    "sync"
 )
 
 /************************************************************
  * netcp Server objects and methods                         *
  ************************************************************/
+var ClientIO chan *NetInstance = nil
+
 type NetChannelService struct {
     Port int16
     Flags int
     PathGate string
+    ClientMap map[string]*NetInstance
+    ClientIO chan *NetInstance
+}
+
+type NetInstance struct {
     Secret []byte
+    ClientId []byte
+    ClientIdString string
 }
 
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
+    if ClientIO == nil {
+        panic(errors.New("error: Cannot handle request without initializing processor"))
+    }
+
     defer reader.Body.Close()
 
     /* Get remote client public key base64 marshalled string */
@@ -112,6 +126,12 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         sendBadErrorCode(writer, errors.New("error: Failed to generate a shared secret key"))
         return
     }
+
+    var instance = &NetInstance{
+        Secret: secret,
+    }
+
+    ClientIO <- instance
 }
 
 func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
@@ -200,19 +220,33 @@ func sendPubKey(writer http.ResponseWriter, marshalled []byte) error {
 }
 
 func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
-    var io_server = &NetChannelService{
+    var server = &NetChannelService{
         Port: port,
         Flags: flags,
         PathGate: path_gate,
+        ClientMap: make(map[string]*NetInstance),
+        ClientIO: make(chan *NetInstance),
     }
 
+    go func (svc *NetChannelService) {
+        var wg sync.WaitGroup
+        wg.Add(1)
+
+        for {
+            client, ok := <- svc.ClientIO
+            if !ok || len(client.Secret) == 0{
+                continue
+            }
+        }
+    } (server)
+
     go func(svc *NetChannelService) {
-        http.HandleFunc(io_server.PathGate, handleClientRequest)
+        http.HandleFunc(server.PathGate, handleClientRequest)
         util.DebugOut("[+] Handling request for path :" + svc.PathGate)
-        if err := http.ListenAndServe(":" + util.IntToString(int(io_server.Port)),nil); err != nil {
+        if err := http.ListenAndServe(":" + util.IntToString(int(server.Port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd")
         }
-    } (io_server)
+    } (server)
 
-    return io_server, nil
+    return server, nil
 }
