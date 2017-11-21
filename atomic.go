@@ -200,10 +200,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
+    var response_pool = bytes.Buffer{}
+    response_pool.Write(encoded)
+
     var xor_key = make([]byte, crc64.Size)
-    copy(xor_key, encoded)
-    var xord_marshalled = make([]byte, len(encoded) - crc64.Size)
-    copy(xord_marshalled, encoded[crc64.Size:])
+    response_pool.Read(xor_key)
+    var xord_marshalled = make([]byte, len(encoded) - crc64.Size - md5.Size)
+    response_pool.Read(xord_marshalled)
     marshalled := func (xor_key []byte, encoded []byte) []byte {
         output := make([]byte, len(encoded))
         copy(output, encoded)
@@ -218,6 +221,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
         return output
     } (xor_key, xord_marshalled)
+    client_id := make([]byte, md5.Size)
+    response_pool.Read(client_id)
 
     serverPubKey, ok := curve.Unmarshal(marshalled)
     if !ok {
@@ -229,8 +234,6 @@ func (f *NetChannelClient) InitializeCircuit() error {
     if err != nil || len(secret) == 0 {
         return err
     }
-
-
 
     return nil
 }
