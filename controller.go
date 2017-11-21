@@ -115,7 +115,8 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         sendBadErrorCode(writer, errors.New("error: Failed to marshal server-side pub key"))
         return
     }
-    if err := sendPubKey(writer, serverPubKeyMarshalled); err != nil {
+    client_id := md5.Sum(marshalled)
+    if err := sendPubKey(writer, serverPubKeyMarshalled, client_id[:]); err != nil {
         sendBadErrorCode(writer, err)
         return
     }
@@ -190,7 +191,7 @@ func sendGoodErrorCode(writer http.ResponseWriter) {
 }
 
 /* Send back server pub key */
-func sendPubKey(writer http.ResponseWriter, marshalled []byte) error {
+func sendPubKey(writer http.ResponseWriter, marshalled []byte, client_id []byte) error {
     var pool = bytes.Buffer{}
     var xor_key = make([]byte, crc64.Size)
     rand.Read(xor_key)
@@ -207,6 +208,7 @@ func sendPubKey(writer http.ResponseWriter, marshalled []byte) error {
         counter += 1
     }
     pool.Write(marshalled_xord)
+    pool.Write(client_id)
 
     var tx_pool string = base64.StdEncoding.EncodeToString(pool.Bytes())
 
