@@ -35,6 +35,7 @@ import (
     "encoding/base64"
     "fmt"
     "sync"
+    "encoding/hex"
 )
 
 /************************************************************
@@ -128,8 +129,13 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         return
     }
 
+    util.DebugOut("Server-side secret:")
+    util.DebugOutHex(secret)
+
     var instance = &NetInstance{
         Secret: secret,
+        ClientId: client_id[:],
+        ClientIdString: hex.EncodeToString(client_id[:]),
     }
 
     ClientIO <- instance
@@ -229,6 +235,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
         ClientMap: make(map[string]*NetInstance),
         ClientIO: make(chan *NetInstance),
     }
+    ClientIO = server.ClientIO
 
     go func (svc *NetChannelService) {
         var wg sync.WaitGroup
