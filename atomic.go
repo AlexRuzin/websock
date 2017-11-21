@@ -235,6 +235,9 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
+    util.DebugOut("Client-side secret:")
+    util.DebugOutHex(secret)
+
     return nil
 }
 
