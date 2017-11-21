@@ -39,27 +39,15 @@ import (
 /************************************************************
  * netcp Server objects and methods                         *
  ************************************************************/
-// Server processor methods
-type ServerProcessor struct {}
-
 type NetChannelService struct {
     Port int16
     Flags int
     PathGate string
-    serverProcessor ServerProcessor
     Secret []byte
 }
 
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
-    service := NetChannelService{
-        Port:  80,
-        Flags: 0,
-        PathGate: reader.URL.Path,
-        serverProcessor: ServerProcessor{},
-        Secret: nil,
-    }
-
     defer reader.Body.Close()
 
     /* Get remote client public key base64 marshalled string */
@@ -83,9 +71,9 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     }
 
     /* Parse client-side public ECDH key*/
-    marshalled, err := service.serverProcessor.getClientPublicKey(*marshalled_client_pub_key, &service)
+    marshalled, err := getClientPublicKey(*marshalled_client_pub_key)
     if err != nil || marshalled == nil {
-        service.serverProcessor.sendBadErrorCode(writer, err)
+        sendBadErrorCode(writer, err)
         util.DebugOut(err.Error())
         return
     }
@@ -93,7 +81,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     ecurve := ecdh.NewEllipticECDH(elliptic.P384())
     clientPublicKey, ok := ecurve.Unmarshal(marshalled)
     if !ok {
-        service.serverProcessor.sendBadErrorCode(writer, errors.New("unmarshalling failed"))
+        sendBadErrorCode(writer, errors.New("unmarshalling failed"))
         return
     }
 
@@ -103,37 +91,30 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
      */
     serverPrivateKey, serverPublicKey, err := ecurve.GenerateKey(rand.Reader)
     if err != nil {
-        service.serverProcessor.sendBadErrorCode(writer, err)
+        sendBadErrorCode(writer, err)
         return
     }
 
     /* Transmit the server public key */
     var serverPubKeyMarshalled = ecurve.Marshal(serverPublicKey)
     if serverPubKeyMarshalled == nil {
-        service.serverProcessor.sendBadErrorCode(writer, errors.New("error: Failed to marshal server-side pub key"))
+        sendBadErrorCode(writer, errors.New("error: Failed to marshal server-side pub key"))
         return
     }
-    if err := service.serverProcessor.sendPubKey(writer, serverPubKeyMarshalled); err != nil {
-        service.serverProcessor.sendBadErrorCode(writer, err)
+    if err := sendPubKey(writer, serverPubKeyMarshalled); err != nil {
+        sendBadErrorCode(writer, err)
         return
     }
 
     /* Generate the secret */
     secret, err := ecurve.GenerateSharedSecret(serverPrivateKey, clientPublicKey)
     if len(secret) == 0 {
-        service.serverProcessor.sendBadErrorCode(writer, errors.New("error: Failed to generate a shared secret key"))
+        sendBadErrorCode(writer, errors.New("error: Failed to generate a shared secret key"))
         return
     }
-
-    service.Secret = make([]byte, len(secret))
-    copy(service.Secret, secret)
-
-    util.DebugOut("Server-side secret: ")
-    util.DebugOutHex(service.Secret)
 }
 
-func (ServerProcessor) getClientPublicKey(buffer string,
-    server *NetChannelService) (marshalled_pub_key []byte, err error) {
+func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
     /*
      * Read in an HTTP request in the following format:
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])
@@ -176,20 +157,20 @@ func (ServerProcessor) getClientPublicKey(buffer string,
 }
 
 /* HTTP 500 - Internal Server Error */
-func (ServerProcessor) sendBadErrorCode(writer http.ResponseWriter, err error) {
+func sendBadErrorCode(writer http.ResponseWriter, err error) {
     writer.WriteHeader(http.StatusInternalServerError)
     writer.Write([]byte("500 - " + err.Error()))
     return
 }
 
 /* HTTP 200 OK */
-func (ServerProcessor) sendGoodErrorCode(writer http.ResponseWriter) {
+func sendGoodErrorCode(writer http.ResponseWriter) {
     writer.WriteHeader(http.StatusOK)
     return
 }
 
 /* Send back server pub key */
-func (ServerProcessor) sendPubKey(writer http.ResponseWriter, marshalled []byte) error {
+func sendPubKey(writer http.ResponseWriter, marshalled []byte) error {
     var pool = bytes.Buffer{}
     var xor_key = make([]byte, crc64.Size)
     rand.Read(xor_key)
