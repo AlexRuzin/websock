@@ -44,6 +44,9 @@ import (
 const (
     FLAG_OK int = iota
     FLAG_DEBUG
+    FLAG_DIRECTION_TO_SERVER
+    FLAG_DIRECTION_TO_CLIENT
+    FLAG_TERMINATE_CONNECTION
 )
 
 type NetChannelClient struct {
