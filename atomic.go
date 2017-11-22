@@ -273,6 +273,11 @@ func (f *NetChannelClient) TestCircuit() error {
     return nil
 }
 
+func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+
+    return 0, nil
+}
+
 func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
     /***********************************************************************************************
      * Tranmis the public key ECDH key to server. The transmission buffer contains:                *
