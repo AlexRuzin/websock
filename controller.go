@@ -211,12 +211,6 @@ func sendBadErrorCode(writer http.ResponseWriter, err error) {
     return
 }
 
-/* HTTP 200 OK */
-func sendGoodErrorCode(writer http.ResponseWriter) {
-    writer.WriteHeader(http.StatusOK)
-    return
-}
-
 /* Send back server pub key */
 func sendPubKey(writer http.ResponseWriter, marshalled []byte, client_id []byte) error {
     var pool = bytes.Buffer{}
@@ -276,7 +270,10 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
 
     go func(svc *NetChannelService) {
         http.HandleFunc(server.PathGate, handleClientRequest)
-        util.DebugOut("[+] Handling request for path :" + svc.PathGate)
+
+        if (svc.Flags & FLAG_DEBUG) > 1 {
+            util.DebugOut("[+] Handling request for path :" + svc.PathGate)
+        }
         if err := http.ListenAndServe(":" + util.IntToString(int(server.Port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd")
         }

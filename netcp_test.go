@@ -44,7 +44,7 @@ func TestMainChannel(t *testing.T) {
 
         service, err := CreateNetCPServer(   CONTROLLER_PATH_GATE, /* /gate.php */
                                              CONTROLLER_PORT, /* 80 */
-                                             0)
+                                             FLAG_DEBUG)
         if err != nil || service == nil {
             D(err.Error())
             T("Cannot start netcp service")

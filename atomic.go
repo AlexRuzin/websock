@@ -43,6 +43,11 @@ import (
  * netcp Client objects and methods                         *
  ************************************************************/
 
+const (
+    FLAG_OK = 1 << iota
+    FLAG_DEBUG = 1 << iota
+)
+
 type NetChannelClient struct {
     InputURI        string
     Port            int16
@@ -240,8 +245,10 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
-    util.DebugOut("Client-side secret:")
-    util.DebugOutHex(secret)
+    if (f.Flags & FLAG_DEBUG) > 1 {
+        util.DebugOut("Client-side secret:")
+        util.DebugOutHex(secret)
+    }
 
     return nil
 }
