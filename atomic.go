@@ -23,29 +23,28 @@
 package netcp
 
 import (
-    "errors"
     "io"
+    "strings"
+    "errors"
     "bytes"
     "net/url"
     "net/http"
+    "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
     "crypto/elliptic"
     "hash/crc64"
     "crypto/md5"
     "crypto/rand"
-    "github.com/AlexRuzin/util"
-    _"net/http/httputil"
-    "strings"
     "io/ioutil"
 )
 
 /************************************************************
  * netcp Client objects and methods                         *
  ************************************************************/
-
+type Base int
 const (
-    FLAG_OK = 1 << iota
-    FLAG_DEBUG = 1 << iota
+    FLAG_OK Base = iota
+    FLAG_DEBUG
 )
 
 type NetChannelClient struct {
@@ -270,6 +269,7 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) boo
 }
 
 func (f *NetChannelClient) TestCircuit() error {
+
 
     return nil
 }
