@@ -42,11 +42,11 @@ import (
  * netcp Client objects and methods                         *
  ************************************************************/
 const (
-    FLAG_OK int = iota
-    FLAG_DEBUG
-    FLAG_DIRECTION_TO_SERVER
-    FLAG_DIRECTION_TO_CLIENT
-    FLAG_TERMINATE_CONNECTION
+    FLAG_OK                         int = 1 << iota
+    FLAG_DEBUG                      int = 1 << iota
+    FLAG_DIRECTION_TO_SERVER        int = 1 << iota
+    FLAG_DIRECTION_TO_CLIENT        int = 1 << iota
+    FLAG_TERMINATE_CONNECTION       int = 1 << iota
 )
 
 type NetChannelClient struct {
