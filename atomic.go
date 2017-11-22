@@ -41,9 +41,8 @@ import (
 /************************************************************
  * netcp Client objects and methods                         *
  ************************************************************/
-type Base int
 const (
-    FLAG_OK Base = iota
+    FLAG_OK int = iota
     FLAG_DEBUG
 )
 
