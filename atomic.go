@@ -124,6 +124,12 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
         key = encodeKeyValue(POST_BODY_KEY_LEN)
 
+        /* This value must not be any of the b64 encoded POST_BODY_KEY_CHARSET values -- true == collision */
+        if collision := f.checkForKeyCollision(key, POST_BODY_KEY_CHARSET); collision == true {
+            i += 1 /* Fix the index */
+            continue
+        }
+
         if i == magic_number {
             parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
             parm_map[util.B64E([]byte(parameter))] = string(post_pool)
@@ -238,6 +244,22 @@ func (f *NetChannelClient) InitializeCircuit() error {
     util.DebugOutHex(secret)
 
     return nil
+}
+
+func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) bool {
+    /* FIXME -- this should be consolidated code */
+    var key_vector = make([]string, len(char_set))
+    for i := len(char_set) - 1; i >= 0; i -= 1 {
+        key_vector[i] = util.B64E([]byte(string(char_set[i])))
+    }
+
+    for i := range key_vector {
+        if bytes.Equal([]byte(key), []byte(key_vector[i])) {
+            return true
+        }
+    }
+
+    return false
 }
 
 func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
