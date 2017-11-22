@@ -90,6 +90,22 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         }
     }
 
+    if marshalled_client_pub_key == nil {
+        /*
+         * Parameter for key negotiation does not exist. This implies that either someone is not using
+         *  the server in the designed fashion, or that there is another command request coming from
+         *  and existing client. Here we verify if the client exists.
+
+         * If it's a command, then there should be only one parameter, which is:
+         *  b64(ClientIdString) = <command>
+         */
+
+         key := reader.Form
+         if key == nil {
+             return
+         }
+    }
+
     /* Parse client-side public ECDH key*/
     marshalled, err := getClientPublicKey(*marshalled_client_pub_key)
     if err != nil || marshalled == nil {
@@ -237,6 +253,8 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
         Port: port,
         Flags: flags,
         PathGate: path_gate,
+
+        /* Map consists of key: ClientId (string) and value: *NetInstance object */
         ClientMap: make(map[string]*NetInstance),
         ClientIO: make(chan *NetInstance),
     }
@@ -248,9 +266,11 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
 
         for {
             client, ok := <- svc.ClientIO
-            if !ok || len(client.Secret) == 0{
+            if !ok || len(client.Secret) == 0 {
                 continue
             }
+
+            svc.ClientMap[client.ClientIdString] = client
         }
     } (server)
 
