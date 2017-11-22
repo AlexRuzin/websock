@@ -262,6 +262,11 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) boo
     return false
 }
 
+func (f *NetChannelClient) TestCircuit() error {
+
+    return nil
+}
+
 func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
     /***********************************************************************************************
      * Tranmis the public key ECDH key to server. The transmission buffer contains:                *
