@@ -32,7 +32,6 @@ import (
     "crypto/rand"
     "crypto/md5"
     "hash/crc64"
-    "encoding/base64"
     "fmt"
     "sync"
     "encoding/hex"
@@ -75,7 +74,13 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     for key := range reader.Form {
         for i := len(POST_BODY_KEY_CHARSET); i != 0; i -= 1 {
             var tmp_key = string(cs[i - 1])
-            if tmp_key == key {
+
+            decoded_key, err := util.B64D(key)
+            if err != nil {
+                return
+            }
+
+            if tmp_key == string(decoded_key) {
                 marshalled_client_pub_key = &reader.Form[key][0]
                 break
             }
@@ -146,7 +151,7 @@ func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
      * Read in an HTTP request in the following format:
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])
      */
-    b64_decoded, err := base64.StdEncoding.DecodeString(buffer)
+    b64_decoded, err := util.B64D(buffer)
     if err != nil {
         return nil, err
     }
@@ -216,7 +221,7 @@ func sendPubKey(writer http.ResponseWriter, marshalled []byte, client_id []byte)
     pool.Write(marshalled_xord)
     pool.Write(client_id)
 
-    var tx_pool string = base64.StdEncoding.EncodeToString(pool.Bytes())
+    var tx_pool string = util.B64E(pool.Bytes())
 
     writer.Header().Set("Content-Type", HTTP_CONTENT_TYPE)
     writer.Header().Set("Connection", "close")

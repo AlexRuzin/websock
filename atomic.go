@@ -33,7 +33,6 @@ import (
     "hash/crc64"
     "crypto/md5"
     "crypto/rand"
-    "encoding/base64"
     "github.com/AlexRuzin/util"
     _"net/http/httputil"
     "strings"
@@ -88,7 +87,7 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
  */
 func encodeKeyValue (high int) string {
     return func (h int) string {
-    	return base64.StdEncoding.EncodeToString([]byte(util.RandomString(util.RandInt(1, high))))
+    	return util.B64E([]byte(util.RandomString(util.RandInt(1, high))))
 	} (high)
 }
 
@@ -126,8 +125,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
         key = encodeKeyValue(POST_BODY_KEY_LEN)
 
         if i == magic_number {
-            char_set := []byte(POST_BODY_KEY_CHARSET)
-            parm_map[string(char_set[util.RandInt(0, len(char_set))])] = string(post_pool)
+            parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
+            parm_map[util.B64E([]byte(parameter))] = string(post_pool)
             continue
         }
 
@@ -195,7 +194,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     if err != nil {
         return err
     }
-    encoded, err := base64.StdEncoding.DecodeString(string(body))
+    encoded, err := util.B64D(string(body))
     if err != nil {
         return err
     }
@@ -264,6 +263,6 @@ func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
     pool_sum := md5.Sum(pool.Bytes())
     pool.Write(pool_sum[:])
 
-    b64_buf := base64.StdEncoding.EncodeToString(pool.Bytes())
+    b64_buf := util.B64E(pool.Bytes())
     return []byte(b64_buf), nil
 }
