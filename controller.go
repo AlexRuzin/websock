@@ -23,17 +23,17 @@
 package netcp
 
 import (
-    "github.com/wsddn/go-ecdh"
+    "fmt"
+    "sync"
     "errors"
     "bytes"
     "net/http"
     "github.com/AlexRuzin/util"
+    "github.com/wsddn/go-ecdh"
     "crypto/elliptic"
     "crypto/rand"
     "crypto/md5"
     "hash/crc64"
-    "fmt"
-    "sync"
     "encoding/hex"
 )
 
