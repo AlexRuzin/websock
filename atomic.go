@@ -254,8 +254,9 @@ func (f *NetChannelClient) InitializeCircuit() error {
     return nil
 }
 
-func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) bool {
+func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (out bool) {
     /* FIXME -- this should be consolidated code */
+    out = false
     var key_vector = make([]string, len(char_set))
     for i := len(char_set) - 1; i >= 0; i -= 1 {
         key_vector[i] = util.B64E([]byte(string(char_set[i])))
@@ -263,11 +264,12 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) boo
 
     for i := range key_vector {
         if bytes.Equal([]byte(key), []byte(key_vector[i])) {
-            return true
+            out = true
+            break
         }
     }
 
-    return false
+    return
 }
 
 func (f *NetChannelClient) TestCircuit() error {
