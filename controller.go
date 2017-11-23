@@ -25,7 +25,6 @@ package netcp
 import (
     "fmt"
     "sync"
-    "errors"
     "bytes"
     "net/http"
     "github.com/AlexRuzin/util"
@@ -59,7 +58,7 @@ type NetInstance struct {
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     if ClientIO == nil {
-        panic(errors.New("error: Cannot handle request without initializing processor"))
+        panic(util.RetErrStr("Cannot handle request without initializing processor"))
     }
 
     defer reader.Body.Close()
@@ -117,7 +116,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     ecurve := ecdh.NewEllipticECDH(elliptic.P384())
     clientPublicKey, ok := ecurve.Unmarshal(marshalled)
     if !ok {
-        sendBadErrorCode(writer, errors.New("unmarshalling failed"))
+        sendBadErrorCode(writer, util.RetErrStr("unmarshalling failed"))
         return
     }
 
@@ -134,7 +133,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     /* Transmit the server public key */
     var serverPubKeyMarshalled = ecurve.Marshal(serverPublicKey)
     if serverPubKeyMarshalled == nil {
-        sendBadErrorCode(writer, errors.New("error: Failed to marshal server-side pub key"))
+        sendBadErrorCode(writer, util.RetErrStr("Failed to marshal server-side pub key"))
         return
     }
     client_id := md5.Sum(marshalled)
@@ -146,7 +145,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     /* Generate the secret */
     secret, err := ecurve.GenerateSharedSecret(serverPrivateKey, clientPublicKey)
     if len(secret) == 0 {
-        sendBadErrorCode(writer, errors.New("error: Failed to generate a shared secret key"))
+        sendBadErrorCode(writer, util.RetErrStr("Failed to generate a shared secret key"))
         return
     }
 
@@ -181,7 +180,7 @@ func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
     copy(sum_buffer, b64_decoded[:len(b64_decoded) - md5.Size])
     new_sum := md5.Sum(sum_buffer)
     if !bytes.Equal(new_sum[:], sum) {
-        return nil, errors.New("error: Data integrity mismatch")
+        return nil, util.RetErrStr("Data integrity mismatch")
     }
 
     copy(marshal_xor, b64_decoded[crc64.Size:len(b64_decoded) - md5.Size])
