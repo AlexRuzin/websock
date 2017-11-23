@@ -61,6 +61,7 @@ type NetChannelClient struct {
     Host            string
     URL             *url.URL
     Secret          []byte
+    ResponseData    []byte
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
@@ -285,7 +286,13 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (ou
 }
 
 func (f *NetChannelClient) testCircuit() error {
-
+    wrote, err := f.Write([]byte(TEST_CLIENT_REQUEST))
+    if err != nil {
+        return err
+    }
+    if wrote != len(TEST_CLIENT_REQUEST) {
+        return util.RetErrStr("Client failed to write TEST_CLIENT_REQUEST to stream")
+    }
 
     return nil
 }
@@ -295,14 +302,24 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
         return 0, util.RetErrStr("No input data")
     }
 
+    key, value, err := f.encryptDataClient(p, f.Secret)
+    if err != nil {
+        return 0, err
+    }
+    var parm_map = make(map[string]string)
 
+    /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
+    parm_map[key] = value
 
     return 0, nil
 }
 
-func (f *NetChannelClient) encryptDataClient(data []byte, enc_key []byte) (key string, value string) {
+func (f *NetChannelClient) encryptDataClient(data []byte, enc_key []byte) (key string, value string, err error) {
+    if len(data) == 0 || len(enc_key) == 0 || f.Connected == false {
+        return "", "", util.RetErrStr("Invalid parameters for encryptDataClient")
+    }
 
-
+    return "", "", nil
 }
 
 func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
