@@ -60,3 +60,9 @@ const HTTP_CONTENT_TYPE = "application/x-www-form-urlencoded"
  * GET or POST verb when constructing circuit with HTTPd
  */
 const HTTP_VERB = "POST"
+
+/*
+ * testCircuit() sends this data, and the server responds with its own
+ */
+const TEST_CLIENT_REQUEST = "Testing client connection"
+const TEST_SERVER_RESPONSE = "Testing server response"
