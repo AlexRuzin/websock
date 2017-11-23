@@ -44,7 +44,7 @@ func TestMainChannel(t *testing.T) {
 
         service, err := CreateNetCPServer(   CONTROLLER_PATH_GATE, /* /gate.php */
                                              CONTROLLER_PORT, /* 80 */
-                                             FLAG_DEBUG)
+                                             FLAG_DEBUG | FLAG_BLOCKING)
         if err != nil || service == nil {
             D(err.Error())
             T("Cannot start netcp service")
@@ -55,7 +55,7 @@ func TestMainChannel(t *testing.T) {
         D("Building the client transporter")
 
         gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-        client, err := BuildNetCPChannel(gate_uri, CONTROLLER_PORT,0)
+        client, err := BuildNetCPChannel(gate_uri, CONTROLLER_PORT, FLAG_BLOCKING)
         if err != nil || client == nil {
             D(err.Error())
             T("Cannot build net channel")

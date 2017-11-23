@@ -242,6 +242,11 @@ func sendPubKey(writer http.ResponseWriter, marshalled []byte, client_id []byte)
 }
 
 func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
+    /* The connection must be either blocking or non-blocking */
+    if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
+        return nil, util.RetErrStr("Controller: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")
+    }
+
     var server = &NetChannelService{
         Port: port,
         Flags: flags,

@@ -46,6 +46,8 @@ const (
     FLAG_DIRECTION_TO_SERVER        int = 1 << iota
     FLAG_DIRECTION_TO_CLIENT        int = 1 << iota
     FLAG_TERMINATE_CONNECTION       int = 1 << iota
+    FLAG_BLOCKING                   int = 1 << iota
+    FLAG_NONBLOCKING                int = 1 << iota
 )
 
 type NetChannelClient struct {
@@ -60,8 +62,9 @@ type NetChannelClient struct {
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
-    if flags == -1 {
-        return nil, util.RetErrStr("BuildNetCPChannel: invalid flag: -1")
+    /* The connection must be either blocking or non-blocking */
+    if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
+        return nil, util.RetErrStr("Atomic: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")
     }
 
     main_url, err := url.Parse(gate_uri)
