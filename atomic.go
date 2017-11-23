@@ -25,7 +25,6 @@ package netcp
 import (
     "io"
     "strings"
-    "errors"
     "bytes"
     "net/url"
     "net/http"
@@ -62,7 +61,7 @@ type NetChannelClient struct {
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
     if flags == -1 {
-        return nil, errors.New("error: BuildNetCPChannel: invalid flag: -1")
+        return nil, util.RetErrStr("BuildNetCPChannel: invalid flag: -1")
     }
 
     main_url, err := url.Parse(gate_uri)
@@ -70,7 +69,7 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
         return nil, err
     }
     if main_url.Scheme != "http" {
-        return nil, errors.New("error: HTTP scheme must not use TLS")
+        return nil, util.RetErrStr("HTTP scheme must not use TLS")
     }
 
     var io_channel = &NetChannelClient{
@@ -198,7 +197,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     if resp.Status != "200 OK" {
-        return errors.New("HTTP 200 OK not returned")
+        return util.RetErrStr("HTTP 200 OK not returned")
     }
     defer resp.Body.Close()
 
@@ -237,7 +236,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
     serverPubKey, ok := curve.Unmarshal(marshalled)
     if !ok {
-        return errors.New("error: Failed to unmarshal server-side public key")
+        return util.RetErrStr("Failed to unmarshal server-side public key")
     }
 
     /* Generate the secret finally */
