@@ -25,7 +25,6 @@ package netcp
 import (
     "github.com/AlexRuzin/util"
     "testing"
-    _"time"
 )
 
 /* Test configuration */
