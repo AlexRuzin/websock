@@ -49,6 +49,7 @@ const (
     FLAG_BLOCKING                   int = 1 << iota
     FLAG_NONBLOCKING                int = 1 << iota
     FLAG_KEEPALIVE                  int = 1 << iota
+    FLAG_COMPRESSION                int = 1 << iota
 )
 
 type NetChannelClient struct {
@@ -218,8 +219,10 @@ func (f *NetChannelClient) InitializeCircuit() error {
     response_pool.Write(encoded)
 
     var xor_key = make([]byte, crc64.Size)
-    response_pool.Read(xor_key)
     var xord_marshalled = make([]byte, len(encoded) - crc64.Size - md5.Size)
+    var client_id = make([]byte, md5.Size)
+
+    response_pool.Read(xor_key)
     response_pool.Read(xord_marshalled)
     marshalled := func (xor_key []byte, encoded []byte) []byte {
         output := make([]byte, len(encoded))
@@ -235,7 +238,6 @@ func (f *NetChannelClient) InitializeCircuit() error {
         }
         return output
     } (xor_key, xord_marshalled)
-    client_id := make([]byte, md5.Size)
     response_pool.Read(client_id)
 
     serverPubKey, ok := curve.Unmarshal(marshalled)
@@ -296,6 +298,11 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
 
 
     return 0, nil
+}
+
+func (f *NetChannelClient) encryptDataClient(data []byte, enc_key []byte) (key string, value string) {
+
+
 }
 
 func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
