@@ -48,6 +48,7 @@ const (
     FLAG_TERMINATE_CONNECTION       int = 1 << iota
     FLAG_BLOCKING                   int = 1 << iota
     FLAG_NONBLOCKING                int = 1 << iota
+    FLAG_KEEPALIVE                  int = 1 << iota
 )
 
 type NetChannelClient struct {
