@@ -250,6 +250,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
         util.DebugOutHex(secret)
     }
 
+    /*
+     * Test the circuit
+     */
+    if err := f.testCircuit(); err != nil {
+        return err
+    }
+
     return nil
 }
 
@@ -271,7 +278,7 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (ou
     return
 }
 
-func (f *NetChannelClient) TestCircuit() error {
+func (f *NetChannelClient) testCircuit() error {
 
 
     return nil
@@ -281,6 +288,8 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     if len(p) == 0 {
         return 0, util.RetErrStr("No input data")
     }
+
+
 
     return 0, nil
 }

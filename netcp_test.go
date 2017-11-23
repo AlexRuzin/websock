@@ -65,14 +65,6 @@ func TestMainChannel(t *testing.T) {
             D(err.Error())
             T("Service is not responding")
         }
-
-        /*
-         * The TestCircuit() call is optional, but recommended
-         */
-        if err := client.TestCircuit(); err != nil {
-            D(err.Error())
-            T("Error in Circuit test")
-        }
     }
 
     if RUN_SERVER_TEST == true {
