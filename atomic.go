@@ -35,6 +35,11 @@ import (
     "crypto/md5"
     "crypto/rand"
     "io/ioutil"
+    "encoding/hex"
+    "time"
+    "github.com/AlexRuzin/cryptog"
+    "encoding/gob"
+    "crypto/sha256"
 )
 
 /************************************************************
@@ -61,7 +66,16 @@ type NetChannelClient struct {
     Host            string
     URL             *url.URL
     Secret          []byte
+    ClientId        []byte
+    ClientIdString  string
     ResponseData    []byte
+}
+
+type TransferUnit struct {
+    TimeStamp       string
+    ClientID        string
+    Data            []byte
+    DecryptedSum    string
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
@@ -241,6 +255,9 @@ func (f *NetChannelClient) InitializeCircuit() error {
     } (xor_key, xord_marshalled)
     response_pool.Read(client_id)
 
+    f.ClientId = client_id
+    f.ClientIdString = hex.EncodeToString(f.ClientId)
+
     serverPubKey, ok := curve.Unmarshal(marshalled)
     if !ok {
         return util.RetErrStr("Failed to unmarshal server-side public key")
@@ -256,6 +273,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
         util.DebugOut("Client-side secret:")
         util.DebugOutHex(secret)
     }
+
+    f.Connected = true
 
     /*
      * Test the circuit
@@ -302,7 +321,7 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
         return 0, util.RetErrStr("No input data")
     }
 
-    key, value, err := f.encryptDataClient(p, f.Secret)
+    key, value, err := f.encryptDataClient(p)
     if err != nil {
         return 0, err
     }
@@ -314,12 +333,52 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     return 0, nil
 }
 
-func (f *NetChannelClient) encryptDataClient(data []byte, enc_key []byte) (key string, value string, err error) {
-    if len(data) == 0 || len(enc_key) == 0 || f.Connected == false {
+func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value string, err error) {
+    if len(data) == 0 || f.Connected == false {
         return "", "", util.RetErrStr("Invalid parameters for encryptDataClient")
     }
+    err = util.RetErrStr("encryptDataClient: Unknown error")
 
-    return "", "", nil
+    /* Transmission object */
+    tx := &TransferUnit{
+        ClientID: f.ClientIdString,
+        TimeStamp: func () string {
+            return time.Now().String()
+        } (),
+        Data: make([]byte, len(data)),
+        DecryptedSum: func (p []byte) string {
+            data_sum := md5.Sum(data)
+            return hex.EncodeToString(data_sum[:])
+        } (data),
+    }
+    copy(tx.Data, data)
+
+    tx_stream, err := func(tx TransferUnit) ([]byte, error) {
+        b := new(bytes.Buffer)
+        e := gob.NewEncoder(b)
+        if err := e.Encode(tx); err != nil {
+            return nil, err
+        }
+        return b.Bytes(), nil
+    } (*tx)
+    if err != nil {
+        return "", "", err
+    }
+
+    sha_key := func (key []byte) []byte {
+        k := sha256.Sum256(f.Secret)
+        return k[:]
+    } (f.Secret)
+
+    encrypted, err := cryptog.RC4_Encrypt(tx_stream, &sha_key)
+    if err != nil {
+        return "", "", err
+    }
+    key = util.B64E([]byte(f.ClientIdString))
+    value = util.B64E(encrypted)
+    err = nil
+
+    return
 }
 
 func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
