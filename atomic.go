@@ -279,6 +279,9 @@ func (f *NetChannelClient) TestCircuit() error {
 }
 
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+    if len(p) == 0 {
+        return 0, util.RetErrStr("No input data")
+    }
 
     return 0, nil
 }
