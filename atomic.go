@@ -96,7 +96,7 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
         URL: main_url,
         InputURI: gate_uri,
         Port: port,
-        Flags: 0,
+        Flags: flags,
         Connected: false,
         Path: main_url.Path,
         Host: main_url.Host,
