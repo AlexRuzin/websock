@@ -99,7 +99,6 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
          * If it's a command, then there should be only one parameter, which is:
          *  b64(ClientIdString) = <command>
          */
-
          key := reader.Form
          if key == nil {
              return
@@ -112,7 +111,10 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
              }
              value := ChannelService.ClientMap[string(decoded_key)]
              if value != nil {
-                 /* Process the signal */
+                 /*
+                  * Base64 decode the signal and return the RC4 encrypted buffer to
+                  *  be processed
+                  */
                  util.WaitForever()
              }
          }
