@@ -116,7 +116,7 @@ func encodeKeyValue (high int) string {
 	} (high)
 }
 
-func sendTransmission(verb string, URI string, m map[string]string) (response *http.Response, err error) {
+func sendTransmission(verb string, URI string, m map[string]string) (response []byte, err error) {
     form := url.Values{}
     for k, v := range m {
         form.Set(k, v)
@@ -160,8 +160,13 @@ func sendTransmission(verb string, URI string, m map[string]string) (response *h
     if resp.Status != "200 OK" {
         return nil, util.RetErrStr("HTTP 200 OK not returned")
     }
+    defer resp.Body.Close()
 
-    return resp, nil
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, err
+    }
+    return body, nil
 }
 
 func (f *NetChannelClient) InitializeCircuit() error {
@@ -213,16 +218,11 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     /* Perform HTTP TX */
-    resp, tx_err := sendTransmission(HTTP_VERB /* POST */, f.InputURI, parm_map)
+    body, tx_err := sendTransmission(HTTP_VERB /* POST */, f.InputURI, parm_map)
     if tx_err != nil && tx_err != io.EOF {
         return tx_err
     }
-    defer resp.Body.Close()
 
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        return err
-    }
     encoded, err := util.B64D(string(body))
     if err != nil {
         return err
@@ -328,16 +328,16 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
     parm_map[key] = value
 
-    resp, err := sendTransmission(HTTP_VERB, f.InputURI, parm_map)
+    body, err := sendTransmission(HTTP_VERB, f.InputURI, parm_map)
     if err != nil {
         return 0, err
     }
-    defer resp.Body.Close()
 
+    if len(body) != 0 {
+        util.WaitForever()
+    }
 
-
-
-    return 0, nil
+    return len(p), nil
 }
 
 func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value string, err error) {
