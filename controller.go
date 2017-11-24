@@ -54,6 +54,11 @@ type NetInstance struct {
     Secret []byte
     ClientId []byte
     ClientIdString string
+    ClientData []byte
+}
+
+func (f *NetChannelService) Close(client *NetInstance) {
+
 }
 
 /* Create circuit -OR- process gate requests */
@@ -109,13 +114,22 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
              if err != nil {
                  continue
              }
-             value := ChannelService.ClientMap[string(decoded_key)]
-             if value != nil {
+             client := ChannelService.ClientMap[string(decoded_key)]
+             if client != nil {
                  /*
+                  * An active connection exists.
+                  *
                   * Base64 decode the signal and return the RC4 encrypted buffer to
                   *  be processed
+                  *
+                  * Write data to NetInstance.ClientData
                   */
-                 util.WaitForever()
+                 value := key[k]
+                 if err := client.decodeClientData(value[0]); err != nil {
+                     ChannelService.Close(client)
+                     return
+                 }
+                 return /* The appropriate ClientData has been stored, so no more need for this method */
              }
          }
     }
@@ -174,6 +188,10 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     }
 
     ClientIO <- instance
+}
+
+func (f *NetInstance) decodeClientData(b64_encoded string) error {
+    return nil
 }
 
 func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
