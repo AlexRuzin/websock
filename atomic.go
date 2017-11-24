@@ -335,10 +335,15 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     }
 
     if len(body) != 0 {
+        /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
         util.WaitForever()
     }
 
     return len(p), nil
+}
+
+func (f *NetChannelClient) decryptDataClient(encrypted []byte) (decrypted []byte, err error) {
+    return nil, nil
 }
 
 func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value string, err error) {
