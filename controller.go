@@ -40,6 +40,7 @@ import (
  * netcp Server objects and methods                         *
  ************************************************************/
 var ClientIO chan *NetInstance = nil
+var ChannelService *NetChannelService = nil
 
 type NetChannelService struct {
     Port int16
@@ -102,6 +103,18 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
          key := reader.Form
          if key == nil {
              return
+         }
+
+         for k := range key {
+             decoded_key, err := util.B64D(k)
+             if err != nil {
+                 continue
+             }
+             value := ChannelService.ClientMap[string(decoded_key)]
+             if value != nil {
+                 /* Process the signal */
+                 util.WaitForever()
+             }
          }
     }
 
@@ -257,6 +270,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
         ClientIO: make(chan *NetInstance),
     }
     ClientIO = server.ClientIO
+    ChannelService = server
 
     go func (svc *NetChannelService) {
         var wg sync.WaitGroup
