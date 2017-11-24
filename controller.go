@@ -58,10 +58,16 @@ type NetInstance struct {
     ClientData []byte
 }
 
-func (f *NetChannelService) Close(client *NetInstance) {
+func (f *NetChannelService) CloseClient(client *NetInstance) {
     f.ClientSync.Lock()
     delete(f.ClientMap, client.ClientIdString)
     f.ClientSync.Unlock()
+}
+
+func (f *NetChannelService) CloseService() {
+    if ClientIO != nil {
+        close(ClientIO)
+    }
 }
 
 /* Create circuit -OR- process gate requests */
@@ -129,7 +135,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                   */
                  value := key[k]
                  if err := client.decodeClientData(value[0]); err != nil {
-                     ChannelService.Close(client)
+                     ChannelService.CloseClient(client)
                      return
                  }
                  return /* The appropriate ClientData has been stored, so no more need for this method */
@@ -301,8 +307,8 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
 
         for {
             client, ok := <- svc.ClientIO
-            if !ok || len(client.Secret) == 0 {
-                continue
+            if !ok {
+                break /* Close the processor */
             }
 
             svc.ClientSync.Lock()
@@ -312,6 +318,7 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
     } (server)
 
     go func(svc *NetChannelService) {
+        /* FIXME -- find a way of closing this thread once CloseService() is invoked */
         http.HandleFunc(server.PathGate, handleClientRequest)
 
         if (svc.Flags & FLAG_DEBUG) > 1 {
