@@ -76,6 +76,7 @@ type TransferUnit struct {
     ClientID        string
     Data            []byte
     DecryptedSum    string
+    Direction       int
 }
 
 func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
@@ -357,6 +358,7 @@ func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value str
             data_sum := md5.Sum(data)
             return hex.EncodeToString(data_sum[:])
         } (data),
+        Direction: FLAG_DIRECTION_TO_SERVER,
     }
     copy(tx.Data, data)
 
