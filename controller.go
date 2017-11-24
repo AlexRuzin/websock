@@ -48,6 +48,7 @@ type NetChannelService struct {
     PathGate string
     ClientMap map[string]*NetInstance
     ClientIO chan *NetInstance
+    ClientSync sync.Mutex
 }
 
 type NetInstance struct {
@@ -58,7 +59,9 @@ type NetInstance struct {
 }
 
 func (f *NetChannelService) Close(client *NetInstance) {
-
+    f.ClientSync.Lock()
+    delete(f.ClientMap, client.ClientIdString)
+    f.ClientSync.Unlock()
 }
 
 /* Create circuit -OR- process gate requests */
@@ -302,7 +305,9 @@ func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelServ
                 continue
             }
 
+            svc.ClientSync.Lock()
             svc.ClientMap[client.ClientIdString] = client
+            svc.ClientSync.Unlock()
         }
     } (server)
 
