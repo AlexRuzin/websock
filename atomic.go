@@ -116,6 +116,54 @@ func encodeKeyValue (high int) string {
 	} (high)
 }
 
+func sendTransmission(verb string, URI string, m map[string]string) (response *http.Response, err error) {
+    form := url.Values{}
+    for k, v := range m {
+        form.Set(k, v)
+    }
+    form_encoded := form.Encode()
+
+    req, err := http.NewRequest(verb /* POST */, URI, strings.NewReader(form_encoded))
+    if err != nil {
+        return nil, err
+    }
+
+    /*
+     * "application/x-www-form-urlencoded"
+     *
+     *  Most common ever Content-Type
+     */
+    req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
+    //req.Header.Set("Connection", "close")
+
+    /*
+     * "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+     *  (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+     *
+     * Most common ever UA
+     */
+    req.Header.Set("User-Agent", HTTP_USER_AGENT)
+
+    /* Parse the domain/IP */
+    uri, err := url.Parse(URI)
+    if err != nil {
+        return nil, err
+    }
+    req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
+
+    http_client := &http.Client{}
+    resp, tx_status := http_client.Do(req)
+    if tx_status != nil {
+        return nil, tx_status
+    }
+
+    if resp.Status != "200 OK" {
+        return nil, util.RetErrStr("HTTP 200 OK not returned")
+    }
+
+    return resp, nil
+}
+
 func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Generate the ECDH keys based on the EllipticP384 Curve/create keypair
@@ -165,59 +213,9 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     /* Perform HTTP TX */
-    resp, tx_err := func(
-            client *NetChannelClient,
-            method string,
-            URI string,
-            m map[string]string) (response *http.Response, err error) {
-        form := url.Values{}
-        for k, v := range m {
-            form.Set(k, v)
-        }
-        form_encoded := form.Encode()
-
-        req, err := http.NewRequest(method /* POST */, URI, strings.NewReader(form_encoded))
-        if err != nil {
-            return nil, err
-        }
-
-        /*
-         * "application/x-www-form-urlencoded"
-         *
-         *  Most common ever Content-Type
-         */
-        req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
-        //req.Header.Set("Connection", "close")
-
-        /*
-         * "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-         *  (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
-         *
-         * Most common ever UA
-         */
-        req.Header.Set("User-Agent", HTTP_USER_AGENT)
-
-        /* Parse the domain/IP */
-        uri, err := url.Parse(URI)
-        if err != nil {
-            return nil, err
-        }
-        req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
-
-        http_client := &http.Client{}
-        resp, tx_status := http_client.Do(req)
-        if tx_status != nil {
-            return nil, tx_status
-        }
-
-        return resp, nil
-    } (f, HTTP_VERB /* POST */, f.InputURI, parm_map)
+    resp, tx_err := sendTransmission(HTTP_VERB /* POST */, f.InputURI, parm_map)
     if tx_err != nil && tx_err != io.EOF {
         return tx_err
-    }
-
-    if resp.Status != "200 OK" {
-        return util.RetErrStr("HTTP 200 OK not returned")
     }
     defer resp.Body.Close()
 
@@ -329,6 +327,15 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
 
     /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
     parm_map[key] = value
+
+    resp, err := sendTransmission(HTTP_VERB, f.InputURI, parm_map)
+    if err != nil {
+        return 0, err
+    }
+    defer resp.Body.Close()
+
+
+
 
     return 0, nil
 }
