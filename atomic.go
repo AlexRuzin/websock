@@ -355,7 +355,8 @@ func (f *NetChannelClient) WriteStream(p []byte) (written int, err error) {
 func (f *NetChannelClient) ReadStream() (read []byte, err error) {
     if (f.Flags & FLAG_BLOCKING) > 1 {
         /* Blocking */
-
+        /* FIXME -- Add blocking code */
+        panic("PANIC: Blocking ReadStream() not implemented")
     }
 
     /* Non-blocking */
