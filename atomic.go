@@ -112,69 +112,6 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
     return io_channel, nil
 }
 
-/*
- * Check if the TCP port is reachcable, then attempt to determine
- *  if our service is running on it
- */
-func encodeKeyValue (high int) string {
-    return func (h int) string {
-    	return util.B64E([]byte(util.RandomString(util.RandInt(1, high))))
-	} (high)
-}
-
-func sendTransmission(verb string, URI string, m map[string]string) (response []byte, err error) {
-    form := url.Values{}
-    for k, v := range m {
-        form.Set(k, v)
-    }
-    form_encoded := form.Encode()
-
-    req, err := http.NewRequest(verb /* POST */, URI, strings.NewReader(form_encoded))
-    if err != nil {
-        return nil, err
-    }
-
-    /*
-     * "application/x-www-form-urlencoded"
-     *
-     *  Most common ever Content-Type
-     */
-    req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
-    req.Header.Set("Connection", "close")
-
-    /*
-     * "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-     *  (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
-     *
-     * Most common ever UA
-     */
-    req.Header.Set("User-Agent", HTTP_USER_AGENT)
-
-    /* Parse the domain/IP */
-    uri, err := url.Parse(URI)
-    if err != nil {
-        return nil, err
-    }
-    req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
-
-    http_client := &http.Client{}
-    resp, tx_status := http_client.Do(req)
-    if tx_status != nil {
-        return nil, tx_status
-    }
-
-    if resp.Status != "200 OK" {
-        return nil, util.RetErrStr("HTTP 200 OK not returned")
-    }
-    defer resp.Body.Close()
-
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        return nil, err
-    }
-    return body, nil
-}
-
 func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Generate the ECDH keys based on the EllipticP384 Curve/create keypair
@@ -340,6 +277,17 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
         return 0, util.RetErrStr("Client not connected")
     }
 
+    if (f.Flags & FLAG_CHECK_STREAM_DATA) > 1 {
+        p = make([]byte, len(CHECK_STREAM_DATA))
+        copy(p, CHECK_STREAM_DATA)
+    } else if (f.Flags & FLAG_TEST_CONNECTION) > 1 {
+        p = make([]byte, len(TEST_CONNECTION_DATA))
+        copy(p, TEST_CONNECTION_DATA)
+    } else if (f.Flags & FLAG_TERMINATE_CONNECTION) > 1 {
+        p = make([]byte, len(TERMINATE_CONNECTION_DATA))
+        copy(p, TERMINATE_CONNECTION_DATA)
+    }
+
     if len(p) == 0 {
         return 0, util.RetErrStr("No input data")
     }
@@ -347,6 +295,7 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
     f.ResponseSync.Lock()
     defer f.ResponseSync.Unlock()
 
+    f.Flags |= FLAG_DIRECTION_TO_SERVER
     key, value, err := f.encryptDataClient(p)
     if err != nil {
         return 0, err
@@ -475,4 +424,67 @@ func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
 
     b64_buf := util.B64E(pool.Bytes())
     return []byte(b64_buf), nil
+}
+
+/*
+ * Check if the TCP port is reachcable, then attempt to determine
+ *  if our service is running on it
+ */
+func encodeKeyValue (high int) string {
+    return func (h int) string {
+        return util.B64E([]byte(util.RandomString(util.RandInt(1, high))))
+    } (high)
+}
+
+func sendTransmission(verb string, URI string, m map[string]string) (response []byte, err error) {
+    form := url.Values{}
+    for k, v := range m {
+        form.Set(k, v)
+    }
+    form_encoded := form.Encode()
+
+    req, err := http.NewRequest(verb /* POST */, URI, strings.NewReader(form_encoded))
+    if err != nil {
+        return nil, err
+    }
+
+    /*
+     * "application/x-www-form-urlencoded"
+     *
+     *  Most common ever Content-Type
+     */
+    req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
+    req.Header.Set("Connection", "close")
+
+    /*
+     * "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+     *  (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+     *
+     * Most common ever UA
+     */
+    req.Header.Set("User-Agent", HTTP_USER_AGENT)
+
+    /* Parse the domain/IP */
+    uri, err := url.Parse(URI)
+    if err != nil {
+        return nil, err
+    }
+    req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
+
+    http_client := &http.Client{}
+    resp, tx_status := http_client.Do(req)
+    if tx_status != nil {
+        return nil, tx_status
+    }
+
+    if resp.Status != "200 OK" {
+        return nil, util.RetErrStr("HTTP 200 OK not returned")
+    }
+    defer resp.Body.Close()
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, err
+    }
+    return body, nil
 }
