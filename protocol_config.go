@@ -29,6 +29,13 @@ package netcp
 const POST_BODY_KEY_CHARSET = "aielndqor"
 
 /*
+ * Interval between requests to check the server for data. The
+ *  lower the value, the more data overhead, but the higher chance
+ *  of transferring data in realtime. In seconds.
+ */
+const CLIENT_DATACHECK_INTERVAL = 1
+
+/*
  * The length of the POST parameter values. If -1, the sizes
  *  will approximate the length of the transmit pool
  */
@@ -66,3 +73,10 @@ const HTTP_VERB = "POST"
  */
 const TEST_CLIENT_REQUEST = "Testing client connection"
 const TEST_SERVER_RESPONSE = "Testing server response"
+
+/*
+ * Constants beyond this point -- do not change these values
+ */
+const CHECK_STREAM_DATA = "check stream data"
+const TEST_CONNECTION_DATA = "test connection data"
+const TERMINATE_CONNECTION_DATA = "terminate connection"
