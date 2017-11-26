@@ -58,18 +58,6 @@ type NetInstance struct {
     ClientData []byte
 }
 
-func (f *NetChannelService) CloseClient(client *NetInstance) {
-    f.ClientSync.Lock()
-    delete(f.ClientMap, client.ClientIdString)
-    f.ClientSync.Unlock()
-}
-
-func (f *NetChannelService) CloseService() {
-    if ClientIO != nil {
-        close(ClientIO)
-    }
-}
-
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     if ClientIO == nil {
@@ -109,7 +97,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
          * Parameter for key negotiation does not exist. This implies that either someone is not using
          *  the server in the designed fashion, or that there is another command request coming from
          *  and existing client. Here we verify if the client exists.
-
+         *
          * If it's a command, then there should be only one parameter, which is:
          *  b64(ClientIdString) = <command>
          */
@@ -281,6 +269,18 @@ func sendPubKey(writer http.ResponseWriter, marshalled []byte, client_id []byte)
     fmt.Fprintln(writer, tx_pool)
 
     return nil
+}
+
+func (f *NetChannelService) CloseClient(client *NetInstance) {
+    f.ClientSync.Lock()
+    delete(f.ClientMap, client.ClientIdString)
+    f.ClientSync.Unlock()
+}
+
+func (f *NetChannelService) CloseService() {
+    if ClientIO != nil {
+        close(ClientIO)
+    }
 }
 
 func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
