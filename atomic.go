@@ -40,6 +40,7 @@ import (
     "github.com/AlexRuzin/cryptog"
     "encoding/gob"
     "crypto/sha256"
+    "sync"
 )
 
 /************************************************************
@@ -68,7 +69,8 @@ type NetChannelClient struct {
     Secret          []byte
     ClientId        []byte
     ClientIdString  string
-    ResponseData    []byte
+    ResponseData    *bytes.Buffer
+    ResponseSync    sync.Mutex
 }
 
 type TransferUnit struct {
@@ -102,6 +104,7 @@ func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClien
         Path: main_url.Path,
         Host: main_url.Host,
         Secret: nil,
+        ResponseData: &bytes.Buffer{},
     }
 
     return io_channel, nil
@@ -304,7 +307,7 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (ou
 }
 
 func (f *NetChannelClient) testCircuit() error {
-    wrote, err := f.Write([]byte(TEST_CLIENT_REQUEST))
+    wrote, err := f.WriteStream([]byte(TEST_CLIENT_REQUEST))
     if err != nil {
         return err
     }
@@ -315,10 +318,13 @@ func (f *NetChannelClient) testCircuit() error {
     return nil
 }
 
-func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+func (f *NetChannelClient) WriteStream(p []byte) (written int, err error) {
     if len(p) == 0 {
         return 0, util.RetErrStr("No input data")
     }
+
+    f.ResponseSync.Lock()
+    defer f.ResponseSync.Unlock()
 
     key, value, err := f.encryptDataClient(p)
     if err != nil {
@@ -336,10 +342,33 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
 
     if len(body) != 0 {
         /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        util.WaitForever()
+        response_data, err := f.decryptDataClient(body)
+        if err != nil {
+            return len(p), err
+        }
+        f.ResponseData.Write(response_data)
     }
 
     return len(p), nil
+}
+
+func (f *NetChannelClient) ReadStream() (read []byte, err error) {
+    if (f.Flags & FLAG_BLOCKING) > 1 {
+        /* Blocking */
+
+    }
+
+    /* Non-blocking */
+    if f.ResponseData.Len() == 0 {
+        return nil, io.EOF
+    }
+
+    f.ResponseSync.Lock()
+    read = make([]byte, f.ResponseData.Len())
+    f.ResponseData.Read(read)
+    defer f.ResponseSync.Unlock()
+
+    return read, io.EOF
 }
 
 func (f *NetChannelClient) decryptDataClient(encrypted []byte) (decrypted []byte, err error) {
