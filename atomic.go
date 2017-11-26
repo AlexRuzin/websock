@@ -52,10 +52,12 @@ const (
     FLAG_DIRECTION_TO_SERVER        int = 1 << iota
     FLAG_DIRECTION_TO_CLIENT        int = 1 << iota
     FLAG_TERMINATE_CONNECTION       int = 1 << iota
+    FLAG_TEST_CONNECTION            int = 1 << iota
     FLAG_BLOCKING                   int = 1 << iota
     FLAG_NONBLOCKING                int = 1 << iota
     FLAG_KEEPALIVE                  int = 1 << iota
     FLAG_COMPRESSION                int = 1 << iota
+    FLAG_CHECK_STREAM_DATA          int = 1 << iota
 )
 
 type NetChannelClient struct {
@@ -138,7 +140,7 @@ func sendTransmission(verb string, URI string, m map[string]string) (response []
      *  Most common ever Content-Type
      */
     req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
-    //req.Header.Set("Connection", "close")
+    req.Header.Set("Connection", "close")
 
     /*
      * "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
@@ -285,7 +287,26 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
+    /*
+     * Periodically check to see if the server has any data to be sent to the
+     *  socket.
+     */
+    go func (client *NetChannelClient) {
+        for {
+            util.SleepSeconds(CLIENT_DATACHECK_INTERVAL)
+            if _, err := client.WriteStream(nil, FLAG_CHECK_STREAM_DATA); err != nil {
+                client.Close()
+                return
+            }
+        }
+    } (f)
+
     return nil
+}
+
+func (f *NetChannelClient) Close() {
+    f.Connected = false
+    f.WriteStream(nil, FLAG_TERMINATE_CONNECTION)
 }
 
 func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (out bool) {
@@ -307,18 +328,18 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (ou
 }
 
 func (f *NetChannelClient) testCircuit() error {
-    wrote, err := f.WriteStream([]byte(TEST_CLIENT_REQUEST))
-    if err != nil {
+    if _, err := f.WriteStream(nil, FLAG_TEST_CONNECTION); err != nil {
         return err
-    }
-    if wrote != len(TEST_CLIENT_REQUEST) {
-        return util.RetErrStr("Client failed to write TEST_CLIENT_REQUEST to stream")
     }
 
     return nil
 }
 
-func (f *NetChannelClient) WriteStream(p []byte) (written int, err error) {
+func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err error) {
+    if f.Connected == false {
+        return 0, util.RetErrStr("Client not connected")
+    }
+
     if len(p) == 0 {
         return 0, util.RetErrStr("No input data")
     }
@@ -353,6 +374,10 @@ func (f *NetChannelClient) WriteStream(p []byte) (written int, err error) {
 }
 
 func (f *NetChannelClient) ReadStream() (read []byte, err error) {
+    if f.Connected == false {
+        return nil, util.RetErrStr("Client not connected")
+    }
+
     if (f.Flags & FLAG_BLOCKING) > 1 {
         /* Blocking */
         /* FIXME -- Add blocking code */
