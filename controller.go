@@ -34,6 +34,9 @@ import (
     "crypto/md5"
     "hash/crc64"
     "encoding/hex"
+    "github.com/AlexRuzin/cryptog"
+    "crypto/sha256"
+    "encoding/gob"
 )
 
 /************************************************************
@@ -122,10 +125,17 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                   * Write data to NetInstance.ClientData
                   */
                  value := key[k]
-                 if err := client.decodeClientData(value[0]); err != nil {
+                 data, err := client.decodeClientData(value[0])
+                 if err != nil {
                      ChannelService.CloseClient(client)
                      return
                  }
+
+                 if err := client.parseClientData(data); err != nil {
+                     ChannelService.CloseClient(client)
+                     return
+                 }
+
                  return /* The appropriate ClientData has been stored, so no more need for this method */
              }
          }
@@ -187,7 +197,48 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     ClientIO <- instance
 }
 
-func (f *NetInstance) decodeClientData(b64_encoded string) error {
+func (f *NetInstance) decodeClientData(b64_encoded string) ([]byte, error) {
+    b64_decoded, err := util.B64D(b64_encoded)
+    if err != nil {
+        return nil, err
+    }
+
+    sha_key := func (key []byte) []byte {
+        k := sha256.Sum256(f.Secret)
+        return k[:]
+    } (f.Secret)
+
+    decrypted, err := cryptog.RC4_Decrypt(b64_decoded, &sha_key)
+    if err != nil {
+        return nil, err
+    }
+
+    tx_unit, err := func(raw []byte) (*TransferUnit, error) {
+        output := new(TransferUnit)
+
+        p := &bytes.Buffer{}
+        p.Write(raw)
+        d := gob.NewDecoder(p)
+        if err := d.Decode(output); err != nil {
+            return nil, err
+        }
+
+        return output, nil
+    } (decrypted)
+    if err != nil || tx_unit == nil {
+        return nil, err
+    }
+
+
+    return nil, nil
+}
+
+func (f *NetInstance) parseClientData([]byte) error {
+
+
+
+
+
     return nil
 }
 
