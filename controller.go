@@ -229,7 +229,6 @@ func (f *NetInstance) decodeClientData(b64_encoded string) ([]byte, error) {
         return nil, err
     }
 
-
     return nil, nil
 }
 
