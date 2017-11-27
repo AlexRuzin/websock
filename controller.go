@@ -239,6 +239,24 @@ func (f *NetInstance) parseClientData(raw_data []byte) error {
     return nil
 }
 
+func (f *NetInstance) sendDataClient(raw_data []byte) (sent int, err error) {
+
+
+
+
+
+    return 0, nil
+}
+
+func (f *NetChannelService) WriteStream(raw_data []byte, client *NetInstance) (sent int, err error) {
+
+
+
+
+
+    return 0, nil
+}
+
 func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
     /*
      * Read in an HTTP request in the following format:
