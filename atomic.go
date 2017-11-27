@@ -277,13 +277,13 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
         return 0, util.RetErrStr("Client not connected")
     }
 
-    if (f.Flags & FLAG_CHECK_STREAM_DATA) > 1 {
+    if (flags & FLAG_CHECK_STREAM_DATA) > 1 {
         p = make([]byte, len(CHECK_STREAM_DATA))
         copy(p, CHECK_STREAM_DATA)
-    } else if (f.Flags & FLAG_TEST_CONNECTION) > 1 {
+    } else if (flags & FLAG_TEST_CONNECTION) > 1 {
         p = make([]byte, len(TEST_CONNECTION_DATA))
         copy(p, TEST_CONNECTION_DATA)
-    } else if (f.Flags & FLAG_TERMINATE_CONNECTION) > 1 {
+    } else if (flags & FLAG_TERMINATE_CONNECTION) > 1 {
         p = make([]byte, len(TERMINATE_CONNECTION_DATA))
         copy(p, TERMINATE_CONNECTION_DATA)
     }
