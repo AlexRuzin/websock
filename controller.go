@@ -35,7 +35,6 @@ import (
     "hash/crc64"
     "encoding/hex"
     "github.com/AlexRuzin/cryptog"
-    "crypto/sha256"
     "encoding/gob"
 )
 
@@ -203,12 +202,7 @@ func (f *NetInstance) decodeClientData(b64_encoded string) ([]byte, error) {
         return nil, err
     }
 
-    sha_key := func (key []byte) []byte {
-        k := sha256.Sum256(f.Secret)
-        return k[:]
-    } (f.Secret)
-
-    decrypted, err := cryptog.RC4_Decrypt(b64_decoded, &sha_key)
+    decrypted, err := cryptog.RC4_Decrypt(b64_decoded, cryptog.RC4_PrepareKey(f.Secret))
     if err != nil {
         return nil, err
     }

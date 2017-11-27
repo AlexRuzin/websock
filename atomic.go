@@ -39,7 +39,6 @@ import (
     "time"
     "github.com/AlexRuzin/cryptog"
     "encoding/gob"
-    "crypto/sha256"
     "sync"
 )
 
@@ -389,12 +388,7 @@ func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value str
         return "", "", err
     }
 
-    sha_key := func (key []byte) []byte {
-        k := sha256.Sum256(f.Secret)
-        return k[:]
-    } (f.Secret)
-
-    encrypted, err := cryptog.RC4_Encrypt(tx_stream, &sha_key)
+    encrypted, err := cryptog.RC4_Encrypt(tx_stream, cryptog.RC4_PrepareKey(f.Secret))
     if err != nil {
         return "", "", err
     }
