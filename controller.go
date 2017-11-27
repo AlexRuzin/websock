@@ -223,10 +223,14 @@ func (f *NetInstance) decodeClientData(b64_encoded string) ([]byte, error) {
         return nil, err
     }
 
+    if (tx_unit.Direction & FLAG_DIRECTION_TO_SERVER) == 0 {
+        return nil, util.RetErrStr("FLAG_DIRECTION_TO_SERVER not set in TransferUnit structure")
+    }
+
     return nil, nil
 }
 
-func (f *NetInstance) parseClientData([]byte) error {
+func (f *NetInstance) parseClientData(raw_data []byte) error {
 
 
 
