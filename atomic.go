@@ -277,6 +277,7 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
         return 0, util.RetErrStr("Client not connected")
     }
 
+    /* FIXME -- fix this ugly code */
     if (flags & FLAG_CHECK_STREAM_DATA) > 1 {
         p = make([]byte, len(CHECK_STREAM_DATA))
         copy(p, CHECK_STREAM_DATA)
@@ -347,6 +348,11 @@ func (f *NetChannelClient) ReadStream() (read []byte, err error) {
 }
 
 func (f *NetChannelClient) decryptDataClient(encrypted []byte) (decrypted []byte, err error) {
+
+
+
+
+
     return nil, nil
 }
 
