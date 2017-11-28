@@ -36,6 +36,7 @@ import (
     "encoding/hex"
     "github.com/AlexRuzin/cryptog"
     "encoding/gob"
+    "strings"
 )
 
 /************************************************************
@@ -124,8 +125,8 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                   * Write data to NetInstance.ClientData
                   */
                  value := key[k]
-                 data, err := client.decodeClientData(value[0])
-                 if err != nil {
+                 client_id, data, err := decryptData(value[0], client.Secret)
+                 if err != nil || strings.Compare(client_id, client.ClientIdString) != 0 {
                      ChannelService.CloseClient(client)
                      return
                  }
@@ -196,15 +197,21 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     ClientIO <- instance
 }
 
-func (f *NetInstance) decodeClientData(b64_encoded string) ([]byte, error) {
+func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data []byte, status error) {
+    status = util.RetErrStr("decryptData: Unknown error")
+    client_id = ""
+    raw_data = nil
+
     b64_decoded, err := util.B64D(b64_encoded)
     if err != nil {
-        return nil, err
+        status = err
+        return
     }
 
-    decrypted, err := cryptog.RC4_Decrypt(b64_decoded, cryptog.RC4_PrepareKey(f.Secret))
+    decrypted, err := cryptog.RC4_Decrypt(b64_decoded, cryptog.RC4_PrepareKey(secret))
     if err != nil {
-        return nil, err
+        status = err
+        return
     }
 
     tx_unit, err := func(raw []byte) (*TransferUnit, error) {
@@ -220,14 +227,23 @@ func (f *NetInstance) decodeClientData(b64_encoded string) ([]byte, error) {
         return output, nil
     } (decrypted)
     if err != nil || tx_unit == nil {
-        return nil, err
+        status = err
+        return
     }
 
-    if (tx_unit.Direction & FLAG_DIRECTION_TO_SERVER) == 0 {
-        return nil, util.RetErrStr("FLAG_DIRECTION_TO_SERVER not set in TransferUnit structure")
+    new_sum := func (p []byte) string {
+        data_sum := md5.Sum(p)
+        return hex.EncodeToString(data_sum[:])
+    } (tx_unit.Data)
+    if strings.Compare(new_sum, tx_unit.DecryptedSum) != 0 {
+        status = util.RetErrStr("decryptData: Data corruption")
+        return
     }
 
-    return nil, nil
+    raw_data = tx_unit.Data
+    client_id = tx_unit.ClientID
+    status = nil
+    return
 }
 
 func (f *NetInstance) parseClientData(raw_data []byte) error {
