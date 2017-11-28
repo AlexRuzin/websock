@@ -1,4 +1,4 @@
-# netcp
+# websock
 A socket-based covert data transfer protocol that uses HTTP without TLS. All data that is transmitted uses state-of-the-art cryptography to protect data transmitted through the stream.
 
 The goal of this project is to create a socket that transmits data that cannot have a static signature placed against it, and further will use advanced cryptographic ciphers to maintain secrecy.
@@ -8,7 +8,7 @@ On the highest level, this communication protocol uses a socket driven communica
 
 Under the radar, each write to the socket is transmitted using HTTP (without TLS/SSL), through a series of parameters that are encrypted using the RC4 cipher. The RC4 implementation itself [https://github.com/AlexRuzin/cryptog], uses an ephemeral IV to maintain a covert channel.
 
-During the initialization stage, `netcp` makes use of Elliptic-curve Diffie-Hellman [https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman] to negotiate a secret key. This process itself uses xor/shift and base64 encoding, to prevent a regex against the serializer.
+During the initialization stage, `websock` makes use of Elliptic-curve Diffie-Hellman [https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman] to negotiate a secret key. This process itself uses xor/shift and base64 encoding, to prevent a regex against the serializer.
 
 ## Features
 1. The NIST P384 curve is used to safely and covertly negotiate a key between the controller and atom (client)
@@ -25,7 +25,7 @@ The API consists of the initialization functions along with the methods used to 
 
 #### [Representation of the Server Object]
 
-This object represents the `netcp` server. 
+This object represents the `websock` server. 
 
 ```go
 type NetChannelService struct {
@@ -53,18 +53,18 @@ type NetInstance struct {
 
 ### Initialization on the server side
 
-Creating the `netcp` server is simple. It requires a TCP listener port, usually port 80. A gate URI is required as well.
+Creating the `websock` server is simple. It requires a TCP listener port, usually port 80. A gate URI is required as well.
 
 Lastly, flags must be set to indicate whether or not the I/O methods will be blocking or non-blocking.
 
 The initialization method will return a service object, from which reading and writing will be possible. A handler method is required that will handle all new client requests. Each new client is represented by the `NetInstance` object.
 
 ```go
-package netcp
+package websock
 
 var ServerInstance *NetChannelService = nil
 var err error = nil
-ServerInstance, err = netcp.CreateNetCpServer("/gate.php", 80, FLAG_BLOCKING)
+ServerInstance, err = websock.CreatewebsockServer("/gate.php", 80, FLAG_BLOCKING)
 if err != nil {
     panic(err.Error())
 }

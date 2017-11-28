@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-package netcp
+package websock
 
 import (
     "github.com/AlexRuzin/util"
@@ -39,14 +39,14 @@ const CONTROLLER_PORT                int16 = 80
 func TestMainChannel(t *testing.T) {
     if RUN_SERVER_TEST == true {
         D("Building the server processor")
-        D("Starting netcp service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
+        D("Starting websock service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
 
-        service, err := CreateNetCPServer(   CONTROLLER_PATH_GATE, /* /gate.php */
+        service, err := CreatewebsockServer(   CONTROLLER_PATH_GATE, /* /gate.php */
                                              CONTROLLER_PORT, /* 80 */
                                              FLAG_DEBUG | FLAG_BLOCKING)
         if err != nil || service == nil {
             D(err.Error())
-            T("Cannot start netcp service")
+            T("Cannot start websock service")
         }
     }
 
@@ -54,7 +54,7 @@ func TestMainChannel(t *testing.T) {
         D("Building the client transporter")
 
         gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-        client, err := BuildNetCPChannel(gate_uri, CONTROLLER_PORT, FLAG_BLOCKING | FLAG_DEBUG)
+        client, err := BuildwebsockChannel(gate_uri, CONTROLLER_PORT, FLAG_BLOCKING | FLAG_DEBUG)
         if err != nil || client == nil {
             D(err.Error())
             T("Cannot build net channel")

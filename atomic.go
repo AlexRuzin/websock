@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-package netcp
+package websock
 
 import (
     "io"
@@ -43,7 +43,7 @@ import (
 )
 
 /************************************************************
- * netcp Client objects and methods                         *
+ * websock Client objects and methods                         *
  ************************************************************/
 const (
     FLAG_OK                         int = 1 << iota
@@ -82,7 +82,7 @@ type TransferUnit struct {
     Direction       int
 }
 
-func BuildNetCPChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
+func BuildwebsockChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
     /* The connection must be either blocking or non-blocking */
     if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
         return nil, util.RetErrStr("Atomic: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")

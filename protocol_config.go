@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-package netcp
+package websock
 
 /*
  * Any of these characters in the charset may be a the key

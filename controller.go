@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-package netcp
+package websock
 
 import (
     "fmt"
@@ -40,7 +40,7 @@ import (
 )
 
 /************************************************************
- * netcp Server objects and methods                         *
+ * websock Server objects and methods                         *
  ************************************************************/
 var ClientIO chan *NetInstance = nil
 var ChannelService *NetChannelService = nil
@@ -368,7 +368,7 @@ func (f *NetChannelService) CloseService() {
     }
 }
 
-func CreateNetCPServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
+func CreatewebsockServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
     /* The connection must be either blocking or non-blocking */
     if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
         return nil, util.RetErrStr("Controller: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")
