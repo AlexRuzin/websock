@@ -359,7 +359,7 @@ func encryptData(data []byte, secret []byte, flags int, client_id string) (encry
     if len(data) == 0 {
         return nil, util.RetErrStr("Invalid parameters for encryptDataClient")
     }
-    err = util.RetErrStr("encryptDataClient: Unknown error")
+    err = util.RetErrStr("encryptData: Unknown error")
 
     /* Transmission object */
     tx := &TransferUnit{
