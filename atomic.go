@@ -296,13 +296,15 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
     defer f.ResponseSync.Unlock()
 
     f.Flags |= FLAG_DIRECTION_TO_SERVER
-    key, value, err := f.encryptDataClient(p)
+    encrypted, err := encryptData(p, f.Secret, FLAG_DIRECTION_TO_SERVER, f.ClientIdString)
     if err != nil {
         return 0, err
     }
     var parm_map = make(map[string]string)
 
     /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
+    value := util.B64E(encrypted)
+    key := util.B64E([]byte(f.ClientIdString))
     parm_map[key] = value
 
     body, err := sendTransmission(HTTP_VERB, f.InputURI, parm_map)
@@ -350,20 +352,18 @@ func (f *NetChannelClient) decryptDataClient(encrypted []byte) (decrypted []byte
 
 
 
-
-
     return nil, nil
 }
 
-func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value string, err error) {
-    if len(data) == 0 || f.Connected == false {
-        return "", "", util.RetErrStr("Invalid parameters for encryptDataClient")
+func encryptData(data []byte, secret []byte, flags int, client_id string) (encrypted []byte, err error) {
+    if len(data) == 0 {
+        return nil, util.RetErrStr("Invalid parameters for encryptDataClient")
     }
     err = util.RetErrStr("encryptDataClient: Unknown error")
 
     /* Transmission object */
     tx := &TransferUnit{
-        ClientID: f.ClientIdString,
+        ClientID: client_id,
         TimeStamp: func () string {
             return time.Now().String()
         } (),
@@ -372,7 +372,7 @@ func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value str
             data_sum := md5.Sum(data)
             return hex.EncodeToString(data_sum[:])
         } (data),
-        Direction: FLAG_DIRECTION_TO_SERVER,
+        Direction: flags,
     }
     copy(tx.Data, data)
 
@@ -385,15 +385,14 @@ func (f *NetChannelClient) encryptDataClient(data []byte) (key string, value str
         return b.Bytes(), nil
     } (*tx)
     if err != nil {
-        return "", "", err
+        return nil, err
     }
 
-    encrypted, err := cryptog.RC4_Encrypt(tx_stream, cryptog.RC4_PrepareKey(f.Secret))
+    output, err := cryptog.RC4_Encrypt(tx_stream, cryptog.RC4_PrepareKey(secret))
     if err != nil {
-        return "", "", err
+        return nil, err
     }
-    key = util.B64E([]byte(f.ClientIdString))
-    value = util.B64E(encrypted)
+    encrypted = output
     err = nil
 
     return
