@@ -23,7 +23,7 @@ The API consists of the initialization functions along with the methods used to 
 
 ### Reference of the Server Side Objects
 
-#### Representation of the Server Object
+#### [Representation of the Server Object]
 
 This object represents the `netcp` server. 
 
@@ -38,7 +38,7 @@ type NetChannelService struct {
 }
 ```
 
-#### Representation of the Client on the Server 
+#### [Representation of the Client on the Server] 
 
 Each client is represented by this structure by the server's `NetChannelService` object.
 
