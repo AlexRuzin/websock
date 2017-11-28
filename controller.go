@@ -58,7 +58,7 @@ type NetInstance struct {
     Secret []byte
     ClientId []byte
     ClientIdString string
-    ClientData []byte
+    ClientData [][]byte /* Data that is waiting to be transmitted */
 }
 
 /* Create circuit -OR- process gate requests */
@@ -110,8 +110,9 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
          }
 
          for k := range key {
-             decoded_key, err := util.B64D(k)
-             if err != nil {
+             var err error = nil
+             var decoded_key []byte
+             if decoded_key, err = util.B64D(k); err != nil {
                  continue
              }
              client := ChannelService.ClientMap[string(decoded_key)]
@@ -125,8 +126,10 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                   * Write data to NetInstance.ClientData
                   */
                  value := key[k]
-                 client_id, data, err := decryptData(value[0], client.Secret)
-                 if err != nil || strings.Compare(client_id, client.ClientIdString) != 0 {
+                 var client_id string
+                 var data []byte = nil
+                 if client_id, data, err = decryptData(value[0], client.Secret);
+                 err != nil || strings.Compare(client_id, client.ClientIdString) != 0 {
                      ChannelService.CloseClient(client)
                      return
                  }
