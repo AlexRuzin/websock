@@ -17,7 +17,7 @@ During the initialization stage, `netcp` makes use of Elliptic-curve Diffie-Hell
 4. Key negotiation uses a covert set of key/value pairs in the HTTP POST parameter. The response, as well, is xor-encoded using an ephemeral key.
 5. Simple use of the Reader/Writer interfaces to read/write to the socket
 
-## API
+## Controller API [`NetChannelService`]
 
 The API consists of the initialization functions along with the methods used to read/write to the streams.
 
@@ -55,12 +55,20 @@ Closing the service requires a simple call.
 ServerInstance.CloseService()
 ```
 
+### Closing a client connection
+
+To close a client connection requires an invocation of a method in the `NetChannelService` object.
+
+```go
+ServerInstance.CloseClient(client *NetInstance)
+```
+
 ### Write to the stream
 
 Writing to the stream requires a simple call to the `NetInstance.WriteStream()` method.
 
 ```go
-data_sent, err := ServerInstance.WriteStream(data, client)
+data_sent, err := ServerInstance.WriteStream(data []byte, client *NetInstance)
 if err != nil || len(data) != data_sent {
     panic(errors.New("Failed to write to the stream"))
 }
