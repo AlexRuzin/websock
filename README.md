@@ -21,6 +21,36 @@ During the initialization stage, `netcp` makes use of Elliptic-curve Diffie-Hell
 
 The API consists of the initialization functions along with the methods used to read/write to the streams.
 
+### Reference of the Server Side Objects
+
+#### Representation of the Server Object
+
+This object represents the `netcp` server. 
+
+```go
+type NetChannelService struct {
+    Port int16                             // Listener port
+    Flags int                              // Any flags (see flags section)
+    PathGate string                        // Gateway URI
+    ClientMap map[string]*NetInstance      // Mapping between client objects to client IDs
+    ClientIO chan *NetInstance             // Channel that will receive new client connections
+    ClientSync sync.Mutex                  // Synchronization object that is invoked during I/O operations
+}
+```
+
+#### Representation of the Client on the Server 
+
+Each client is represented by this structure by the server's `NetChannelService` object.
+
+```go
+type NetInstance struct {
+    Secret []byte                          // The shared secret after ECDH negotiation
+    ClientId []byte                        // Unique client ID
+    ClientIdString string                  // Same as above, but in string format
+    ClientData [][]byte                    // Contains an array of data waiting to be read/sent by/to the client
+}
+```
+
 ### Initialization on the server side
 
 Creating the `netcp` server is simple. It requires a TCP listener port, usually port 80. A gate URI is required as well.
