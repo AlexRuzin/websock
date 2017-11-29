@@ -64,7 +64,7 @@ package websock
 
 var ServerInstance *NetChannelService = nil
 var err error = nil
-ServerInstance, err = websock.CreatewebsockServer("/gate.php", 80, FLAG_BLOCKING)
+ServerInstance, err = websock.CreateServer("/gate.php", 80, FLAG_BLOCKING)
 if err != nil {
     panic(err.Error())
 }
