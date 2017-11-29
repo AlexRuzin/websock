@@ -59,6 +59,25 @@ const (
     FLAG_CHECK_STREAM_DATA          int = 1 << iota
 )
 
+type internalCommands struct {
+    flags int
+    command string
+    comment string
+}
+var iCommands = []internalCommands{
+    {flags: FLAG_TEST_CONNECTION,
+     command: TEST_CONNECTION_DATA,
+     comment: "Tests the connection after key negotiation"},
+
+    {flags: FLAG_CHECK_STREAM_DATA,
+     command: CHECK_STREAM_DATA,
+     comment: "Checks the server for any inbound data"},
+
+    {flags: FLAG_TERMINATE_CONNECTION,
+     command: TERMINATE_CONNECTION_DATA,
+     comment: "Terminates the connection between the controller and atom"},
+}
+
 type NetChannelClient struct {
     InputURI        string
     Port            int16
@@ -279,21 +298,23 @@ func (f *NetChannelClient) testCircuit() error {
     return nil
 }
 
+func getInternalCommand(flags int) []byte {
+    for k := range iCommands {
+        if (iCommands[k].flags & flags) > 0 {
+            return []byte(iCommands[k].command)
+        }
+    }
+
+    return nil
+}
+
 func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err error) {
     if f.Connected == false {
         return 0, util.RetErrStr("Client not connected")
     }
 
-    /* FIXME -- fix this ugly code */
-    if (flags & FLAG_CHECK_STREAM_DATA) > 1 {
-        p = make([]byte, len(CHECK_STREAM_DATA))
-        copy(p, CHECK_STREAM_DATA)
-    } else if (flags & FLAG_TEST_CONNECTION) > 1 {
-        p = make([]byte, len(TEST_CONNECTION_DATA))
-        copy(p, TEST_CONNECTION_DATA)
-    } else if (flags & FLAG_TERMINATE_CONNECTION) > 1 {
-        p = make([]byte, len(TERMINATE_CONNECTION_DATA))
-        copy(p, TERMINATE_CONNECTION_DATA)
+    if len(p) == 0 && flags != 0 {
+        p = getInternalCommand(flags)
     }
 
     if len(p) == 0 {
