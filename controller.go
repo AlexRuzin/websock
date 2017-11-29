@@ -134,7 +134,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                      return
                  }
 
-                 if err := client.parseClientData(data); err != nil {
+                 if err := client.parseClientData(data, writer); err != nil {
                      ChannelService.CloseClient(client)
                      return
                  }
@@ -200,6 +200,27 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     ClientIO <- instance
 }
 
+func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWriter) error {
+    /*
+     * Check for internal commands first
+     */
+    if util.IsAsciiPrintable(string(raw_data)) {
+        var command = string(raw_data)
+        if strings.Compare(command, CHECK_STREAM_DATA) == 0 {
+            /* FIXME */
+            util.WaitForever()
+        } else if strings.Compare(command, TEST_CONNECTION_DATA) == 0 {
+            encrypted, _ := encryptData(raw_data, f.Secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            return sendResponse(writer, encrypted)
+        } else if strings.Compare(command, TERMINATE_CONNECTION_DATA) == 0 {
+            /* FIXME */
+            util.WaitForever()
+        }
+    }
+
+    return nil
+}
+
 func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data []byte, status error) {
     status = util.RetErrStr("decryptData: Unknown error")
     client_id = ""
@@ -247,24 +268,6 @@ func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data 
     client_id = tx_unit.ClientID
     status = nil
     return
-}
-
-func (f *NetInstance) parseClientData(raw_data []byte) error {
-
-
-
-
-
-    return nil
-}
-
-func (f *NetInstance) sendDataClient(raw_data []byte) (sent int, err error) {
-
-
-
-
-
-    return 0, nil
 }
 
 func (f *NetChannelService) WriteStream(raw_data []byte, client *NetInstance) (sent int, err error) {
@@ -345,13 +348,25 @@ func sendPubKey(writer http.ResponseWriter, marshalled []byte, client_id []byte)
     pool.Write(marshalled_xord)
     pool.Write(client_id)
 
-    var tx_pool string = util.B64E(pool.Bytes())
+    if err := sendResponse(writer, pool.Bytes()); err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func sendResponse(writer http.ResponseWriter, data []byte) error {
+    if len(data) == 0 {
+        return util.RetErrStr("sendResponse: Invalid parameter")
+    }
+
+    var b64_encoded = util.B64E(data)
 
     writer.Header().Set("Content-Type", HTTP_CONTENT_TYPE)
     writer.Header().Set("Connection", "close")
     writer.WriteHeader(http.StatusOK)
 
-    fmt.Fprintln(writer, tx_pool)
+    fmt.Fprintln(writer, b64_encoded)
 
     return nil
 }

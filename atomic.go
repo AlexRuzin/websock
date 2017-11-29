@@ -208,6 +208,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     if err != nil || len(secret) == 0 {
         return err
     }
+    f.Secret = secret
 
     if (f.Flags & FLAG_DEBUG) > 1 {
         util.DebugOut("Client-side secret:")
@@ -268,6 +269,13 @@ func (f *NetChannelClient) testCircuit() error {
         return err
     }
 
+    var response_data = make([]byte, f.ResponseData.Len())
+    f.ResponseData.Read(response_data)
+    if !util.IsAsciiPrintable(string(response_data)) ||
+        strings.Compare(string(response_data), TEST_CONNECTION_DATA) != 0 {
+        return util.RetErrStr("Invalid response. Test connection failed")
+    }
+
     return nil
 }
 
@@ -314,9 +322,12 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
 
     if len(body) != 0 {
         /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        response_data, err := f.decryptDataClient(body)
+        client_id, response_data, err := decryptData(string(body), f.Secret)
         if err != nil {
             return len(p), err
+        }
+        if strings.Compare(client_id, f.ClientIdString) != 0 {
+            return len(p), util.RetErrStr("Invalid server response")
         }
         f.ResponseData.Write(response_data)
     }
@@ -348,16 +359,9 @@ func (f *NetChannelClient) ReadStream() (read []byte, err error) {
     return read, io.EOF
 }
 
-func (f *NetChannelClient) decryptDataClient(encrypted []byte) (decrypted []byte, err error) {
-
-
-
-    return nil, nil
-}
-
 func encryptData(data []byte, secret []byte, flags int, client_id string) (encrypted []byte, err error) {
     if len(data) == 0 {
-        return nil, util.RetErrStr("Invalid parameters for encryptDataClient")
+        return nil, util.RetErrStr("Invalid parameters for encryptData")
     }
     err = util.RetErrStr("encryptData: Unknown error")
 
