@@ -298,23 +298,21 @@ func (f *NetChannelClient) testCircuit() error {
     return nil
 }
 
-func getInternalCommand(flags int) []byte {
-    for k := range iCommands {
-        if (iCommands[k].flags & flags) > 0 {
-            return []byte(iCommands[k].command)
-        }
-    }
-
-    return nil
-}
-
 func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err error) {
     if f.Connected == false {
         return 0, util.RetErrStr("Client not connected")
     }
 
     if len(p) == 0 && flags != 0 {
-        p = getInternalCommand(flags)
+        p = func (flags int) []byte {
+            for k := range iCommands {
+                if (iCommands[k].flags & flags) > 0 {
+                    return []byte(iCommands[k].command)
+                }
+            }
+
+            return nil
+        } (flags)
     }
 
     if len(p) == 0 {
