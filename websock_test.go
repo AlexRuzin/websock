@@ -41,7 +41,7 @@ func TestMainChannel(t *testing.T) {
         D("Building the server processor")
         D("Starting websock service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
 
-        service, err := CreatewebsockServer(   CONTROLLER_PATH_GATE, /* /gate.php */
+        service, err := CreateServer(   CONTROLLER_PATH_GATE, /* /gate.php */
                                              CONTROLLER_PORT, /* 80 */
                                              FLAG_DEBUG | FLAG_BLOCKING)
         if err != nil || service == nil {
