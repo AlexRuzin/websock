@@ -37,6 +37,7 @@ import (
     "github.com/AlexRuzin/cryptog"
     "encoding/gob"
     "strings"
+    "io"
 )
 
 /************************************************************
@@ -300,10 +301,20 @@ func (f *NetChannelService) ReadStream(client *NetInstance) (data []byte, err er
         panic(util.RetErrStr("Invalid parameters for ReadStream()"))
     }
 
+    if (f.Flags & FLAG_BLOCKING) > 0 {
+        /* Blocking */
+        panic("blocking streams not implemented")
+    }
+
+    /* Non-blocking */
+    if client.ClientRX.Len() == 0 {
+        return nil, io.EOF
+    }
+
     data = make([]byte, client.ClientRX.Len())
     client.ClientRX.Read(data)
 
-    return data, nil
+    return data, io.EOF
 }
 
 func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
