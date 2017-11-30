@@ -47,6 +47,7 @@ var ClientIO chan *NetInstance = nil
 var ChannelService *NetChannelService = nil
 
 type NetChannelService struct {
+    IncomingHandler func(client *NetInstance, server *NetChannelService) error
     Port int16
     Flags int
     PathGate string
@@ -56,6 +57,7 @@ type NetChannelService struct {
 }
 
 type NetInstance struct {
+    Service *NetChannelService
     Secret []byte
     ClientId []byte
     ClientIdString string
@@ -195,6 +197,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     util.DebugOutHex(secret)
 
     var instance = &NetInstance{
+        Service: ChannelService,
         Secret: secret,
         ClientId: client_id[:],
         ClientIdString: hex.EncodeToString(client_id[:]),
@@ -433,13 +436,19 @@ func (f *NetChannelService) CloseService() {
     }
 }
 
-func CreateServer(path_gate string, port int16, flags int) (*NetChannelService, error) {
+func (f *NetInstance) Close() {
+    ChannelService.CloseClient(f)
+}
+
+func CreateServer(path_gate string, port int16, flags int, handler func(client *NetInstance,
+    server *NetChannelService) error) (*NetChannelService, error) {
     /* The connection must be either blocking or non-blocking */
     if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
         return nil, util.RetErrStr("Controller: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")
     }
 
     var server = &NetChannelService{
+        IncomingHandler: handler,
         Port: port,
         Flags: flags,
         PathGate: path_gate,
@@ -462,7 +471,12 @@ func CreateServer(path_gate string, port int16, flags int) (*NetChannelService, 
             }
 
             svc.ClientSync.Lock()
+
             svc.ClientMap[client.ClientIdString] = client
+            if err := svc.IncomingHandler(client, svc); err != nil {
+                svc.CloseClient(client)
+            }
+
             svc.ClientSync.Unlock()
         }
     } (server)
