@@ -33,7 +33,7 @@ const POST_BODY_KEY_CHARSET = "aielndqor"
  *  lower the value, the more data overhead, but the higher chance
  *  of transferring data in realtime. In seconds.
  */
-const CLIENT_DATACHECK_INTERVAL = 1
+const CLIENT_DATACHECK_INTERVAL = 5
 
 /*
  * The length of the POST parameter values. If -1, the sizes
