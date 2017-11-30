@@ -66,6 +66,25 @@ type NetInstance struct {
     IOSync sync.Mutex
 }
 
+func (f *NetInstance) Len() int {
+    return f.ClientRX.Len()
+}
+
+func (f *NetInstance) Read(p []byte) (read int, err error) {
+    data, err := f.Service.ReadStream(f)
+    if err != io.EOF {
+        return 0, err
+    }
+
+    copy(p, data)
+    return len(data), io.EOF
+}
+
+func (f *NetInstance) Write(p []byte) (wrote int, err error) {
+    wrote, err = f.Service.WriteStream(p, f)
+    return
+}
+
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     if ClientIO == nil {
