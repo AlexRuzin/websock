@@ -255,6 +255,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
                 client.Close()
                 return
             }
+
+            if (client.Flags & FLAG_DEBUG) > 1 {
+                datetime := func() string {
+                    return time.Now().String()
+                }()
+                util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive")
+            }
         }
     } (f)
 
