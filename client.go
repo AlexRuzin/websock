@@ -20,4 +20,9 @@
  * SOFTWARE.
  */
 
-package websock
+package main
+
+import (
+    "github.com/AlexRuzin/websock"
+)
+
