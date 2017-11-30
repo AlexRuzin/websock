@@ -101,7 +101,7 @@ type TransferUnit struct {
     Direction       int
 }
 
-func BuildwebsockChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
+func BuildChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
     /* The connection must be either blocking or non-blocking */
     if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
         return nil, util.RetErrStr("Atomic: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")
