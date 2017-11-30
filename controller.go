@@ -58,7 +58,9 @@ type NetInstance struct {
     Secret []byte
     ClientId []byte
     ClientIdString string
-    ClientData [][]byte /* Data that is waiting to be transmitted */
+    ClientTX *bytes.Buffer /* Data waiting to be transmitted */
+    ClientRX *bytes.Buffer /* Data that is waiting to be read */
+    IOSync sync.Mutex
 }
 
 /* Create circuit -OR- process gate requests */
@@ -195,6 +197,8 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         Secret: secret,
         ClientId: client_id[:],
         ClientIdString: hex.EncodeToString(client_id[:]),
+        ClientRX: &bytes.Buffer{},
+        ClientTX: &bytes.Buffer{},
     }
 
     ClientIO <- instance
@@ -207,8 +211,13 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
     if util.IsAsciiPrintable(string(raw_data)) {
         var command = string(raw_data)
         if strings.Compare(command, CHECK_STREAM_DATA) == 0 {
-            /* FIXME */
-            util.WaitForever()
+            f.IOSync.Lock()
+            defer f.IOSync.Unlock()
+
+            raw_data := make([]byte, f.ClientTX.Len())
+            f.ClientTX.Read(raw_data)
+            encrypted, _ := encryptData(raw_data, f.Secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            return sendResponse(writer, encrypted)
         } else if strings.Compare(command, TEST_CONNECTION_DATA) == 0 {
             encrypted, _ := encryptData(raw_data, f.Secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
@@ -271,12 +280,30 @@ func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data 
 }
 
 func (f *NetChannelService) WriteStream(raw_data []byte, client *NetInstance) (sent int, err error) {
+    client.IOSync.Lock()
+    defer client.IOSync.Unlock()
 
+    if client == nil {
+        panic(util.RetErrStr("Invalid parameters for WriteStream()"))
+    }
 
+    client.ClientTX.Write(raw_data)
 
+    return len(raw_data), nil
+}
 
+func (f *NetChannelService) ReadStream(client *NetInstance) (data []byte, err error) {
+    client.IOSync.Lock()
+    defer client.IOSync.Unlock()
 
-    return 0, nil
+    if client == nil {
+        panic(util.RetErrStr("Invalid parameters for ReadStream()"))
+    }
+
+    data = make([]byte, client.ClientRX.Len())
+    client.ClientRX.Read(data)
+
+    return data, nil
 }
 
 func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
