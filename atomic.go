@@ -303,6 +303,9 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
         return 0, util.RetErrStr("Client not connected")
     }
 
+    f.ResponseSync.Lock()
+    defer f.ResponseSync.Unlock()
+
     if len(p) == 0 && flags != 0 {
         p = func (flags int) []byte {
             for k := range iCommands {
@@ -318,9 +321,6 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
     if len(p) == 0 {
         return 0, util.RetErrStr("No input data")
     }
-
-    f.ResponseSync.Lock()
-    defer f.ResponseSync.Unlock()
 
     f.Flags |= FLAG_DIRECTION_TO_SERVER
     encrypted, err := encryptData(p, f.Secret, FLAG_DIRECTION_TO_SERVER, f.ClientIdString)
@@ -359,6 +359,9 @@ func (f *NetChannelClient) ReadStream() (read []byte, err error) {
         return nil, util.RetErrStr("Client not connected")
     }
 
+    f.ResponseSync.Lock()
+    defer f.ResponseSync.Unlock()
+
     if (f.Flags & FLAG_BLOCKING) > 1 {
         /* Blocking */
         /* FIXME -- Add blocking code */
@@ -370,10 +373,8 @@ func (f *NetChannelClient) ReadStream() (read []byte, err error) {
         return nil, io.EOF
     }
 
-    f.ResponseSync.Lock()
     read = make([]byte, f.ResponseData.Len())
     f.ResponseData.Read(read)
-    defer f.ResponseSync.Unlock()
 
     return read, io.EOF
 }
