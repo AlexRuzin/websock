@@ -250,7 +250,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
     go func (client *NetChannelClient) {
         for {
             util.SleepSeconds(CLIENT_DATACHECK_INTERVAL)
-            if _, err := client.WriteStream(nil, FLAG_CHECK_STREAM_DATA); err != nil {
+            _, _, err := client.WriteStream(nil, FLAG_CHECK_STREAM_DATA)
+            if err != nil {
                 client.Close()
                 return
             }
@@ -284,7 +285,7 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (ou
 }
 
 func (f *NetChannelClient) testCircuit() error {
-    if _, err := f.WriteStream(nil, FLAG_TEST_CONNECTION); err != nil {
+    if _, _, err := f.WriteStream(nil, FLAG_TEST_CONNECTION); err != nil {
         return err
     }
 
@@ -298,9 +299,9 @@ func (f *NetChannelClient) testCircuit() error {
     return nil
 }
 
-func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err error) {
+func (f *NetChannelClient) WriteStream(p []byte, flags int) (read int, written int, err error) {
     if f.Connected == false {
-        return 0, util.RetErrStr("Client not connected")
+        return 0,0, util.RetErrStr("Client not connected")
     }
 
     f.ResponseSync.Lock()
@@ -319,13 +320,13 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
     }
 
     if len(p) == 0 {
-        return 0, util.RetErrStr("No input data")
+        return 0, 0, util.RetErrStr("No input data")
     }
 
     f.Flags |= FLAG_DIRECTION_TO_SERVER
     encrypted, err := encryptData(p, f.Secret, FLAG_DIRECTION_TO_SERVER, f.ClientIdString)
     if err != nil {
-        return 0, err
+        return 0, 0, err
     }
     var parm_map = make(map[string]string)
 
@@ -336,22 +337,22 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (written int, err er
 
     body, err := sendTransmission(HTTP_VERB, f.InputURI, parm_map)
     if err != nil {
-        return 0, err
+        return 0,0, err
     }
 
     if len(body) != 0 {
         /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
         client_id, response_data, err := decryptData(string(body), f.Secret)
         if err != nil {
-            return len(p), err
+            return len(body), len(p), err
         }
         if strings.Compare(client_id, f.ClientIdString) != 0 {
-            return len(p), util.RetErrStr("Invalid server response")
+            return len(body), len(p), util.RetErrStr("Invalid server response")
         }
         f.ResponseData.Write(response_data)
     }
 
-    return len(p), nil
+    return len(body), len(p), nil
 }
 
 func (f *NetChannelClient) ReadStream() (read []byte, err error) {
