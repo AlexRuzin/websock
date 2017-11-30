@@ -215,18 +215,30 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             f.IOSync.Lock()
             defer f.IOSync.Unlock()
 
-            raw_data := make([]byte, f.ClientTX.Len())
+            if f.ClientTX.Len() == 0 {
+                writer.WriteHeader(http.StatusOK)
+                return nil
+            }
+
+            raw_data = make([]byte, f.ClientTX.Len())
             f.ClientTX.Read(raw_data)
             encrypted, _ := encryptData(raw_data, f.Secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
+
         } else if strings.Compare(command, TEST_CONNECTION_DATA) == 0 {
             encrypted, _ := encryptData(raw_data, f.Secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
+
         } else if strings.Compare(command, TERMINATE_CONNECTION_DATA) == 0 {
             /* FIXME */
             util.WaitForever()
         }
     }
+
+    /* Append data to read */
+    f.IOSync.Lock()
+    defer f.IOSync.Unlock()
+    f.ClientRX.Write(raw_data)
 
     return nil
 }
