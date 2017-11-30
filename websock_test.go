@@ -65,6 +65,8 @@ func TestMainChannel(t *testing.T) {
             D(err.Error())
             T("Service is not responding")
         }
+
+
     }
 
     if RUN_SERVER_TEST == true {
@@ -73,6 +75,8 @@ func TestMainChannel(t *testing.T) {
 }
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
+    util.SleepSeconds(8)
+    client.Write([]byte("some random data"))
     return nil
 }
 
