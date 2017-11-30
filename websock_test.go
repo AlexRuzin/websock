@@ -43,7 +43,8 @@ func TestMainChannel(t *testing.T) {
 
         service, err := CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
                                      CONTROLLER_PORT, /* 80 */
-                                     FLAG_DEBUG | FLAG_BLOCKING)
+                                     FLAG_DEBUG | FLAG_BLOCKING,
+                                     incomingClientHandler)
         if err != nil || service == nil {
             D(err.Error())
             T("Cannot start websock service")
@@ -69,6 +70,10 @@ func TestMainChannel(t *testing.T) {
     if RUN_SERVER_TEST == true {
         util.WaitForever()
     }
+}
+
+func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
+    return nil
 }
 
 func D(debug string) {
