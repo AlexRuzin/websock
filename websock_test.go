@@ -25,6 +25,8 @@ package websock
 import (
     "github.com/AlexRuzin/util"
     "testing"
+    "os"
+    "strings"
 )
 
 /* Test configuration */
@@ -36,7 +38,48 @@ const CONTROLLER_DOMAIN              string = "127.0.0.1"
 const CONTROLLER_PATH_GATE           string = "/gate.php"
 const CONTROLLER_PORT                int16 = 80
 
+const STANDALONE                     bool = true
+
 func TestMainChannel(t *testing.T) {
+    if STANDALONE == true {
+        if len(os.Args) == 0 {
+            panic("Invalid arguments")
+        }
+
+        var mode = os.Args[1:]
+        if strings.Compare("server", mode[0]) == 0{
+            D("Building the server processor")
+            D("Starting websock service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
+
+            service, err := CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
+                CONTROLLER_PORT, /* 80 */
+                FLAG_DEBUG | FLAG_BLOCKING,
+                incomingClientHandler)
+            if err != nil || service == nil {
+                D(err.Error())
+                T("Cannot start websock service")
+            }
+        }
+
+        if strings.Compare("client", mode[0]) == 0 {
+            D("Building the client transporter")
+
+            gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
+            client, err := BuildChannel(gate_uri, CONTROLLER_PORT, FLAG_BLOCKING | FLAG_DEBUG)
+            if err != nil || client == nil {
+                D(err.Error())
+                T("Cannot build net channel")
+            }
+
+            if err := client.InitializeCircuit(); err != nil {
+                D(err.Error())
+                T("Service is not responding")
+            }
+        }
+
+        return
+    }
+
     if RUN_SERVER_TEST == true {
         D("Building the server processor")
         D("Starting websock service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
