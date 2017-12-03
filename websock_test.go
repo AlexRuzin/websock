@@ -81,11 +81,13 @@ func TestMainChannel(t *testing.T) {
         return
     }
 
+    var service *NetChannelService = nil
     if RUN_SERVER_TEST == true {
         D("Building the server processor")
         D("Starting websock service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
 
-        service, err := CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
+        var err error
+        service, err = CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
                                      CONTROLLER_PORT, /* 80 */
                                      FLAG_DEBUG,
                                      incomingClientHandler)
@@ -110,6 +112,11 @@ func TestMainChannel(t *testing.T) {
             T("Service is not responding")
         }
 
+        go func (client *NetChannelClient) {
+            util.SleepSeconds(4)
+        } (client)
+
+
         util.WaitForever()
     }
 
@@ -119,8 +126,8 @@ func TestMainChannel(t *testing.T) {
 }
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
-    util.SleepSeconds(8)
-    //client.Write([]byte("some random data"))
+    util.SleepSeconds(14)
+    client.Write([]byte("some random data"))
     return nil
 }
 
