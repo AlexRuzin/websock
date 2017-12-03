@@ -29,11 +29,15 @@ package websock
 const POST_BODY_KEY_CHARSET = "aielndqor"
 
 /*
- * Interval between requests to check the server for data. The
- *  lower the value, the more data overhead, but the higher chance
- *  of transferring data in realtime. In seconds.
+ * For each data request sent by the client, the server must wait
+ *  wait n seconds before it sends back a 200 OK (i.e. no data to
+ *  be transmitted). Otherwise, if during this time data is sent,
+ *  then the loop is broken and the data buffer is transmitted.
+ *
+ * The below value is how many iterations/checks are required before
+ *  sending a 200 OK. The value is in seconds
  */
-const CLIENT_DATACHECK_INTERVAL = 5
+const CONTROLLER_RESPONSE_TIMEOUT = 10
 
 /*
  * The length of the POST parameter values. If -1, the sizes
