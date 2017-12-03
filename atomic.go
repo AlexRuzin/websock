@@ -120,6 +120,10 @@ func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient
         ResponseData: &bytes.Buffer{},
     }
 
+    if (io_channel.Flags & FLAG_DEBUG) > 1 {
+        util.DebugOut("NetChannelClient structure initialized")
+    }
+
     return io_channel, nil
 }
 
@@ -242,18 +246,17 @@ func (f *NetChannelClient) InitializeCircuit() error {
      */
     go func (client *NetChannelClient) {
         for {
-            util.SleepSeconds(CLIENT_DATACHECK_INTERVAL)
-            _, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
+            read, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
             if err != nil {
                 client.Close()
                 return
             }
 
-            if (client.Flags & FLAG_DEBUG) > 1 {
+            if (client.Flags & FLAG_DEBUG) > 1 && read == 0 {
                 datetime := func() string {
                     return time.Now().String()
                 }()
-                util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive")
+                util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
             }
         }
     } (f)
