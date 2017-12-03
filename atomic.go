@@ -52,8 +52,6 @@ const (
     FLAG_DIRECTION_TO_CLIENT        int = 1 << iota
     FLAG_TERMINATE_CONNECTION       int = 1 << iota
     FLAG_TEST_CONNECTION            int = 1 << iota
-    FLAG_BLOCKING                   int = 1 << iota
-    FLAG_NONBLOCKING                int = 1 << iota
     FLAG_KEEPALIVE                  int = 1 << iota
     FLAG_COMPRESSION                int = 1 << iota
     FLAG_CHECK_STREAM_DATA          int = 1 << iota
@@ -102,11 +100,6 @@ type TransferUnit struct {
 }
 
 func BuildChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
-    /* The connection must be either blocking or non-blocking */
-    if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
-        return nil, util.RetErrStr("Atomic: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")
-    }
-
     main_url, err := url.Parse(gate_uri)
     if err != nil {
         return nil, err
@@ -250,7 +243,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     go func (client *NetChannelClient) {
         for {
             util.SleepSeconds(CLIENT_DATACHECK_INTERVAL)
-            _, _, err := client.WriteStream(nil, FLAG_CHECK_STREAM_DATA)
+            _, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
             if err != nil {
                 client.Close()
                 return
@@ -270,7 +263,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
 func (f *NetChannelClient) Close() {
     f.Connected = false
-    f.WriteStream(nil, FLAG_TERMINATE_CONNECTION)
+    f.writeStream(nil, FLAG_TERMINATE_CONNECTION)
 }
 
 func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (out bool) {
@@ -292,7 +285,7 @@ func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (ou
 }
 
 func (f *NetChannelClient) testCircuit() error {
-    if _, _, err := f.WriteStream(nil, FLAG_TEST_CONNECTION); err != nil {
+    if _, _, err := f.writeStream(nil, FLAG_TEST_CONNECTION); err != nil {
         return err
     }
 
@@ -306,7 +299,7 @@ func (f *NetChannelClient) testCircuit() error {
     return nil
 }
 
-func (f *NetChannelClient) WriteStream(p []byte, flags int) (read int, written int, err error) {
+func (f *NetChannelClient) writeStream(p []byte, flags int) (read int, written int, err error) {
     if f.Connected == false {
         return 0,0, util.RetErrStr("Client not connected")
     }
@@ -362,7 +355,7 @@ func (f *NetChannelClient) WriteStream(p []byte, flags int) (read int, written i
     return len(body), len(p), nil
 }
 
-func (f *NetChannelClient) ReadStream() (read []byte, err error) {
+func (f *NetChannelClient) readStream() (read []byte, err error) {
     if f.Connected == false {
         return nil, util.RetErrStr("Client not connected")
     }
@@ -370,13 +363,6 @@ func (f *NetChannelClient) ReadStream() (read []byte, err error) {
     f.ResponseSync.Lock()
     defer f.ResponseSync.Unlock()
 
-    if (f.Flags & FLAG_BLOCKING) > 1 {
-        /* Blocking */
-        /* FIXME -- Add blocking code */
-        panic("PANIC: Blocking ReadStream() not implemented")
-    }
-
-    /* Non-blocking */
     if f.ResponseData.Len() == 0 {
         return nil, io.EOF
     }
