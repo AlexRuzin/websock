@@ -38,6 +38,7 @@ import (
     "encoding/gob"
     "strings"
     "io"
+    "time"
 )
 
 /************************************************************
@@ -245,9 +246,23 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             f.IOSync.Lock()
             defer f.IOSync.Unlock()
 
-            if f.ClientTX.Len() == 0 {
-                writer.WriteHeader(http.StatusOK)
-                return nil
+            util.DebugOut("Received get data request")
+
+            /* ADDME -- this code should be using channels */
+            var c = CONTROLLER_RESPONSE_TIMEOUT * 100
+            for ; c != 0; c -= 1 {
+                if f.ClientTX.Len() != 0 {
+                    break
+                }
+                util.Sleep(10 * time.Millisecond)
+            }
+
+            if c == 0 {
+                /* Time out -- no data to be sent */
+                if f.ClientTX.Len() == 0 {
+                    writer.WriteHeader(http.StatusOK)
+                    return nil
+                }
             }
 
             raw_data = make([]byte, f.ClientTX.Len())
