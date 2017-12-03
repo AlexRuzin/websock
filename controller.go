@@ -71,18 +71,26 @@ func (f *NetInstance) Len() int {
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
-    data, err := f.Service.ReadStream(f)
-    if err != io.EOF {
-        return 0, err
+    f.IOSync.Lock()
+    defer f.IOSync.Unlock()
+
+    if f.ClientRX.Len() == 0 {
+        return 0, io.EOF
     }
 
-    copy(p, data)
+    data := make([]byte, f.ClientRX.Len())
+    f.ClientRX.Read(data)
+
     return len(data), io.EOF
 }
 
 func (f *NetInstance) Write(p []byte) (wrote int, err error) {
-    wrote, err = f.Service.WriteStream(p, f)
-    return
+    f.IOSync.Lock()
+    defer f.IOSync.Unlock()
+
+    f.ClientTX.Write(p)
+
+    return len(p), nil
 }
 
 /* Create circuit -OR- process gate requests */
@@ -314,43 +322,6 @@ func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data 
     return
 }
 
-func (f *NetChannelService) WriteStream(raw_data []byte, client *NetInstance) (sent int, err error) {
-    client.IOSync.Lock()
-    defer client.IOSync.Unlock()
-
-    if client == nil {
-        panic(util.RetErrStr("Invalid parameters for WriteStream()"))
-    }
-
-    client.ClientTX.Write(raw_data)
-
-    return len(raw_data), nil
-}
-
-func (f *NetChannelService) ReadStream(client *NetInstance) (data []byte, err error) {
-    client.IOSync.Lock()
-    defer client.IOSync.Unlock()
-
-    if client == nil {
-        panic(util.RetErrStr("Invalid parameters for ReadStream()"))
-    }
-
-    if (f.Flags & FLAG_BLOCKING) > 0 {
-        /* Blocking */
-        panic("blocking streams not implemented")
-    }
-
-    /* Non-blocking */
-    if client.ClientRX.Len() == 0 {
-        return nil, io.EOF
-    }
-
-    data = make([]byte, client.ClientRX.Len())
-    client.ClientRX.Read(data)
-
-    return data, io.EOF
-}
-
 func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
     /*
      * Read in an HTTP request in the following format:
@@ -461,11 +432,6 @@ func (f *NetInstance) Close() {
 
 func CreateServer(path_gate string, port int16, flags int, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
-    /* The connection must be either blocking or non-blocking */
-    if !((flags & FLAG_NONBLOCKING) > 1 || (flags & FLAG_BLOCKING) > 1) {
-        return nil, util.RetErrStr("Controller: Either FLAG_BLOCKING or FLAG_NONBLOCKING must be set")
-    }
-
     var server = &NetChannelService{
         IncomingHandler: handler,
         Port: port,
