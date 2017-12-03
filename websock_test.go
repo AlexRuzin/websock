@@ -34,11 +34,12 @@ const RUN_CLIENT_TEST                bool = true
 const RUN_SERVER_TEST                bool = true
 
 /* Configuration */
+//const CONTROLLER_DOMAIN              string = "192.168.0.50:8080"
 const CONTROLLER_DOMAIN              string = "127.0.0.1"
 const CONTROLLER_PATH_GATE           string = "/gate.php"
 const CONTROLLER_PORT                int16 = 80
 
-const STANDALONE                     bool = true
+const STANDALONE                     bool = false
 
 func TestMainChannel(t *testing.T) {
     if STANDALONE == true {
@@ -53,7 +54,7 @@ func TestMainChannel(t *testing.T) {
 
             service, err := CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
                 CONTROLLER_PORT, /* 80 */
-                FLAG_DEBUG | FLAG_BLOCKING,
+                FLAG_DEBUG,
                 incomingClientHandler)
             if err != nil || service == nil {
                 D(err.Error())
@@ -65,7 +66,7 @@ func TestMainChannel(t *testing.T) {
             D("Building the client transporter")
 
             gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-            client, err := BuildChannel(gate_uri, CONTROLLER_PORT, FLAG_BLOCKING | FLAG_DEBUG)
+            client, err := BuildChannel(gate_uri, CONTROLLER_PORT, FLAG_DEBUG)
             if err != nil || client == nil {
                 D(err.Error())
                 T("Cannot build net channel")
@@ -86,7 +87,7 @@ func TestMainChannel(t *testing.T) {
 
         service, err := CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
                                      CONTROLLER_PORT, /* 80 */
-                                     FLAG_DEBUG | FLAG_BLOCKING,
+                                     FLAG_DEBUG,
                                      incomingClientHandler)
         if err != nil || service == nil {
             D(err.Error())
@@ -98,7 +99,7 @@ func TestMainChannel(t *testing.T) {
         D("Building the client transporter")
 
         gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-        client, err := BuildChannel(gate_uri, CONTROLLER_PORT, FLAG_BLOCKING | FLAG_DEBUG)
+        client, err := BuildChannel(gate_uri, CONTROLLER_PORT, FLAG_DEBUG)
         if err != nil || client == nil {
             D(err.Error())
             T("Cannot build net channel")
@@ -109,7 +110,7 @@ func TestMainChannel(t *testing.T) {
             T("Service is not responding")
         }
 
-
+        util.WaitForever()
     }
 
     if RUN_SERVER_TEST == true {
@@ -119,7 +120,7 @@ func TestMainChannel(t *testing.T) {
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     util.SleepSeconds(8)
-    client.Write([]byte("some random data"))
+    //client.Write([]byte("some random data"))
     return nil
 }
 
