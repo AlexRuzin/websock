@@ -47,7 +47,8 @@ import (
  ************************************************************/
 type FlagVal int
 const (
-    FLAG_DEBUG                   FlagVal = 1 << iota /* Flip up to 32 bits */
+    FLAG_DO_NOT_USE   FlagVal = 1 << iota /* Flip up to 32 bits  -- DO NOT USE THIS FLAG*/
+    FLAG_DEBUG
     FLAG_DIRECTION_TO_SERVER
     FLAG_DIRECTION_TO_CLIENT
     FLAG_TERMINATE_CONNECTION
