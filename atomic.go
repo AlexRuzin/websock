@@ -45,20 +45,19 @@ import (
 /************************************************************
  * websock Client objects and methods                         *
  ************************************************************/
+type FlagVal int
 const (
-    FLAG_OK                         int = 1 << iota
-    FLAG_DEBUG                      int = 1 << iota
-    FLAG_DIRECTION_TO_SERVER        int = 1 << iota
-    FLAG_DIRECTION_TO_CLIENT        int = 1 << iota
-    FLAG_TERMINATE_CONNECTION       int = 1 << iota
-    FLAG_TEST_CONNECTION            int = 1 << iota
-    FLAG_KEEPALIVE                  int = 1 << iota
-    FLAG_COMPRESSION                int = 1 << iota
-    FLAG_CHECK_STREAM_DATA          int = 1 << iota
+    FLAG_DEBUG                   FlagVal = 1 << iota /* Flip up to 32 bits */
+    FLAG_DIRECTION_TO_SERVER
+    FLAG_DIRECTION_TO_CLIENT
+    FLAG_TERMINATE_CONNECTION
+    FLAG_TEST_CONNECTION
+    FLAG_COMPRESSION
+    FLAG_CHECK_STREAM_DATA
 )
 
 type internalCommands struct {
-    flags int
+    flags FlagVal
     command string
     comment string
 }
@@ -79,7 +78,7 @@ var iCommands = []internalCommands{
 type NetChannelClient struct {
     InputURI        string
     Port            int16
-    Flags           int
+    Flags           FlagVal
     Connected       bool
     Path            string
     Host            string
@@ -96,10 +95,10 @@ type TransferUnit struct {
     ClientID        string
     Data            []byte
     DecryptedSum    string
-    Direction       int
+    Direction       FlagVal
 }
 
-func BuildChannel(gate_uri string, port int16, flags int) (*NetChannelClient, error) {
+func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient, error) {
     main_url, err := url.Parse(gate_uri)
     if err != nil {
         return nil, err
@@ -299,7 +298,7 @@ func (f *NetChannelClient) testCircuit() error {
     return nil
 }
 
-func (f *NetChannelClient) writeStream(p []byte, flags int) (read int, written int, err error) {
+func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, written int, err error) {
     if f.Connected == false {
         return 0,0, util.RetErrStr("Client not connected")
     }
@@ -308,7 +307,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags int) (read int, written i
     defer f.ResponseSync.Unlock()
 
     if len(p) == 0 && flags != 0 {
-        p = func (flags int) []byte {
+        p = func (flags FlagVal) []byte {
             for k := range iCommands {
                 if (iCommands[k].flags & flags) > 0 {
                     return []byte(iCommands[k].command)
@@ -373,7 +372,7 @@ func (f *NetChannelClient) readStream() (read []byte, err error) {
     return read, io.EOF
 }
 
-func encryptData(data []byte, secret []byte, flags int, client_id string) (encrypted []byte, err error) {
+func encryptData(data []byte, secret []byte, flags FlagVal, client_id string) (encrypted []byte, err error) {
     if len(data) == 0 {
         return nil, util.RetErrStr("Invalid parameters for encryptData")
     }

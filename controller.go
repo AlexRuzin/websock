@@ -49,7 +49,7 @@ var ChannelService *NetChannelService = nil
 type NetChannelService struct {
     IncomingHandler func(client *NetInstance, server *NetChannelService) error
     Port int16
-    Flags int
+    Flags FlagVal
     PathGate string
     ClientMap map[string]*NetInstance
     ClientIO chan *NetInstance
@@ -430,7 +430,7 @@ func (f *NetInstance) Close() {
     ChannelService.CloseClient(f)
 }
 
-func CreateServer(path_gate string, port int16, flags int, handler func(client *NetInstance,
+func CreateServer(path_gate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
     var server = &NetChannelService{
         IncomingHandler: handler,
