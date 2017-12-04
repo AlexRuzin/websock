@@ -53,9 +53,8 @@ const (
     FLAG_DIRECTION_TO_CLIENT
     FLAG_TERMINATE_CONNECTION
     FLAG_TEST_CONNECTION
-    FLAG_COMPRESSION
+    //FLAG_COMPRESSION
     FLAG_CHECK_STREAM_DATA
-    FLAG_CLIENT_TERMINATED
 )
 
 type internalCommands struct {
@@ -127,6 +126,10 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
 }
 
 func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient, error) {
+    if (flags & FLAG_DO_NOT_USE) == 1 {
+        return nil, util.RetErrStr("Invalid flag: FLAG_DO_NOT_USE")
+    }
+
     main_url, err := url.Parse(gate_uri)
     if err != nil {
         return nil, err
@@ -455,7 +458,7 @@ func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
     pool.Write(xor_key)
     marshal_encrypted := make([]byte, len(pubKeyMarshalled))
     copy(marshal_encrypted, pubKeyMarshalled)
-    counter := 0 /* FIXME -- controller.go also has a similar function */
+    counter := 0
     for k := range marshal_encrypted {
         if counter == len(xor_key) {
             counter = 0
@@ -514,7 +517,7 @@ func sendTransmission(verb string, URI string, m map[string]string) (response []
     if err != nil {
         return nil, err
     }
-    req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
+    req.Header.Set("Host", uri.Hostname())
 
     resp_io := make(chan *http.Response)
     tr := &http.Transport{}
