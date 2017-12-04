@@ -44,8 +44,8 @@ import (
 /************************************************************
  * websock Server objects and methods                       *
  ************************************************************/
-var ClientIO chan *NetInstance = nil
-var ChannelService *NetChannelService = nil
+var clientIO chan *NetInstance = nil
+var channelService *NetChannelService = nil
 
 type NetChannelService struct {
     incomingHandler func(client *NetInstance, server *NetChannelService) error
@@ -96,7 +96,7 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
 
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
-    if ClientIO == nil {
+    if clientIO == nil {
         panic(util.RetErrStr("Cannot handle request without initializing processor"))
     }
 
@@ -148,7 +148,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
              if decoded_key, err = util.B64D(k); err != nil {
                  continue
              }
-             client := ChannelService.clientMap[string(decoded_key)]
+             client := channelService.clientMap[string(decoded_key)]
              if client != nil {
                  /*
                   * An active connection exists.
@@ -163,12 +163,12 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                  var data []byte = nil
                  if client_id, data, err = decryptData(value[0], client.secret);
                  err != nil || strings.Compare(client_id, client.clientIdString) != 0 {
-                     ChannelService.CloseClient(client)
+                     channelService.CloseClient(client)
                      return
                  }
 
                  if err := client.parseClientData(data, writer); err != nil {
-                     ChannelService.CloseClient(client)
+                     channelService.CloseClient(client)
                      return
                  }
 
@@ -221,11 +221,13 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         return
     }
 
-    util.DebugOut("Server-side secret:")
-    util.DebugOutHex(secret)
+    if (channelService.flags & FLAG_DEBUG) > 1 {
+        util.DebugOut("Server-side secret:")
+        util.DebugOutHex(secret)
+    }
 
     var instance = &NetInstance{
-        service: ChannelService,
+        service: channelService,
         secret: secret,
         clientId: client_id[:],
         clientIdString: hex.EncodeToString(client_id[:]),
@@ -233,7 +235,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         clientTX: &bytes.Buffer{},
     }
 
-    ClientIO <- instance
+    clientIO <- instance
 }
 
 func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWriter) error {
@@ -436,13 +438,13 @@ func (f *NetChannelService) CloseClient(client *NetInstance) {
 }
 
 func (f *NetChannelService) CloseService() {
-    if ClientIO != nil {
-        close(ClientIO)
+    if clientIO != nil {
+        close(clientIO)
     }
 }
 
 func (f *NetInstance) Close() {
-    ChannelService.CloseClient(f)
+    channelService.CloseClient(f)
 }
 
 func CreateServer(path_gate string, port int16, flags FlagVal, handler func(client *NetInstance,
@@ -457,8 +459,8 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
         clientMap: make(map[string]*NetInstance),
         clientIO: make(chan *NetInstance),
     }
-    ClientIO = server.clientIO
-    ChannelService = server
+    clientIO = server.clientIO
+    channelService = server
 
     go func (svc *NetChannelService) {
         var wg sync.WaitGroup
