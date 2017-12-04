@@ -113,9 +113,10 @@ func TestMainChannel(t *testing.T) {
         }
 
         go func (client *NetChannelClient) {
-            util.SleepSeconds(4)
+            util.SleepSeconds(20)
+            util.DebugOut("Sending forced write request...")
+            client.Write([]byte("test data"))
         } (client)
-
 
         util.WaitForever()
     }
@@ -128,6 +129,13 @@ func TestMainChannel(t *testing.T) {
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     util.SleepSeconds(14)
     client.Write([]byte("some random data"))
+
+    util.SleepSeconds(25)
+    if client.Len() != 0 {
+        data := make([]byte, client.Len())
+        client.Read(data)
+        util.DebugOut(string(data))
+    }
     return nil
 }
 
