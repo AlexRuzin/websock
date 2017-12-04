@@ -42,7 +42,7 @@ import (
 )
 
 /************************************************************
- * websock Server objects and methods                         *
+ * websock Server objects and methods                       *
  ************************************************************/
 var ClientIO chan *NetInstance = nil
 var ChannelService *NetChannelService = nil
