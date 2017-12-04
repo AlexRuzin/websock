@@ -77,18 +77,19 @@ var iCommands = []internalCommands{
 }
 
 type NetChannelClient struct {
-    InputURI        string
-    Port            int16
-    Flags           FlagVal
-    Connected       bool
-    Path            string
-    Host            string
-    URL             *url.URL
-    Secret          []byte
-    ClientId        []byte
-    ClientIdString  string
-    ResponseData    *bytes.Buffer
-    ResponseSync    sync.Mutex
+    inputURI        string
+    port            int16
+    flags           FlagVal
+    connected       bool
+    path            string
+    host            string
+    controllerURL   *url.URL
+    secret          []byte
+    clientId        []byte
+    clientIdString  string
+    responseData    *bytes.Buffer
+    requestData     *bytes.Buffer
+    responseSync    sync.Mutex
 }
 
 type TransferUnit struct {
@@ -109,18 +110,18 @@ func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient
     }
 
     var io_channel = &NetChannelClient{
-        URL: main_url,
-        InputURI: gate_uri,
-        Port: port,
-        Flags: flags,
-        Connected: false,
-        Path: main_url.Path,
-        Host: main_url.Host,
-        Secret: nil,
-        ResponseData: &bytes.Buffer{},
+        controllerURL: main_url,
+        inputURI: gate_uri,
+        port: port,
+        flags: flags,
+        connected: false,
+        path: main_url.Path,
+        host: main_url.Host,
+        secret: nil,
+        responseData: &bytes.Buffer{},
     }
 
-    if (io_channel.Flags & FLAG_DEBUG) > 1 {
+    if (io_channel.flags & FLAG_DEBUG) > 1 {
         util.DebugOut("NetChannelClient structure initialized")
     }
 
@@ -176,7 +177,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     /* Perform HTTP TX */
-    body, tx_err := sendTransmission(HTTP_VERB /* POST */, f.InputURI, parm_map)
+    body, tx_err := sendTransmission(HTTP_VERB /* POST */, f.inputURI, parm_map)
     if tx_err != nil && tx_err != io.EOF {
         return tx_err
     }
@@ -211,8 +212,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
     } (xor_key, xord_marshalled)
     response_pool.Read(client_id)
 
-    f.ClientId = client_id
-    f.ClientIdString = hex.EncodeToString(f.ClientId)
+    f.clientId = client_id
+    f.clientIdString = hex.EncodeToString(f.clientId)
 
     serverPubKey, ok := curve.Unmarshal(marshalled)
     if !ok {
@@ -224,14 +225,14 @@ func (f *NetChannelClient) InitializeCircuit() error {
     if err != nil || len(secret) == 0 {
         return err
     }
-    f.Secret = secret
+    f.secret = secret
 
-    if (f.Flags & FLAG_DEBUG) > 1 {
+    if (f.flags & FLAG_DEBUG) > 1 {
         util.DebugOut("Client-side secret:")
         util.DebugOutHex(secret)
     }
 
-    f.Connected = true
+    f.connected = true
 
     /*
      * Test the circuit
@@ -252,7 +253,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
                 return
             }
 
-            if (client.Flags & FLAG_DEBUG) > 1 && read == 0 {
+            if (client.flags & FLAG_DEBUG) > 1 && read == 0 {
                 datetime := func() string {
                     return time.Now().String()
                 }()
@@ -265,7 +266,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
 }
 
 func (f *NetChannelClient) Close() {
-    f.Connected = false
+    f.connected = false
     f.writeStream(nil, FLAG_TERMINATE_CONNECTION)
 }
 
@@ -292,8 +293,8 @@ func (f *NetChannelClient) testCircuit() error {
         return err
     }
 
-    var response_data = make([]byte, f.ResponseData.Len())
-    f.ResponseData.Read(response_data)
+    var response_data = make([]byte, f.responseData.Len())
+    f.responseData.Read(response_data)
     if !util.IsAsciiPrintable(string(response_data)) ||
         strings.Compare(string(response_data), TEST_CONNECTION_DATA) != 0 {
         return util.RetErrStr("Invalid response. Test connection failed")
@@ -303,12 +304,12 @@ func (f *NetChannelClient) testCircuit() error {
 }
 
 func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, written int, err error) {
-    if f.Connected == false {
+    if f.connected == false {
         return 0,0, util.RetErrStr("Client not connected")
     }
 
-    f.ResponseSync.Lock()
-    defer f.ResponseSync.Unlock()
+    f.responseSync.Lock()
+    defer f.responseSync.Unlock()
 
     if len(p) == 0 && flags != 0 {
         p = func (flags FlagVal) []byte {
@@ -326,8 +327,8 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         return 0, 0, util.RetErrStr("No input data")
     }
 
-    f.Flags |= FLAG_DIRECTION_TO_SERVER
-    encrypted, err := encryptData(p, f.Secret, FLAG_DIRECTION_TO_SERVER, f.ClientIdString)
+    f.flags |= FLAG_DIRECTION_TO_SERVER
+    encrypted, err := encryptData(p, f.secret, FLAG_DIRECTION_TO_SERVER, f.clientIdString)
     if err != nil {
         return 0, 0, err
     }
@@ -335,43 +336,43 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
 
     /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
     value := util.B64E(encrypted)
-    key := util.B64E([]byte(f.ClientIdString))
+    key := util.B64E([]byte(f.clientIdString))
     parm_map[key] = value
 
-    body, err := sendTransmission(HTTP_VERB, f.InputURI, parm_map)
+    body, err := sendTransmission(HTTP_VERB, f.inputURI, parm_map)
     if err != nil {
         return 0,0, err
     }
 
     if len(body) != 0 {
         /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        client_id, response_data, err := decryptData(string(body), f.Secret)
+        client_id, response_data, err := decryptData(string(body), f.secret)
         if err != nil {
             return len(body), len(p), err
         }
-        if strings.Compare(client_id, f.ClientIdString) != 0 {
+        if strings.Compare(client_id, f.clientIdString) != 0 {
             return len(body), len(p), util.RetErrStr("Invalid server response")
         }
-        f.ResponseData.Write(response_data)
+        f.responseData.Write(response_data)
     }
 
     return len(body), len(p), nil
 }
 
 func (f *NetChannelClient) readStream() (read []byte, err error) {
-    if f.Connected == false {
+    if f.connected == false {
         return nil, util.RetErrStr("Client not connected")
     }
 
-    f.ResponseSync.Lock()
-    defer f.ResponseSync.Unlock()
+    f.responseSync.Lock()
+    defer f.responseSync.Unlock()
 
-    if f.ResponseData.Len() == 0 {
+    if f.responseData.Len() == 0 {
         return nil, io.EOF
     }
 
-    read = make([]byte, f.ResponseData.Len())
-    f.ResponseData.Read(read)
+    read = make([]byte, f.responseData.Len())
+    f.responseData.Read(read)
 
     return read, io.EOF
 }
