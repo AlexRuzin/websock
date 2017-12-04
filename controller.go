@@ -48,48 +48,48 @@ var ClientIO chan *NetInstance = nil
 var ChannelService *NetChannelService = nil
 
 type NetChannelService struct {
-    IncomingHandler func(client *NetInstance, server *NetChannelService) error
-    Port int16
-    Flags FlagVal
-    PathGate string
-    ClientMap map[string]*NetInstance
-    ClientIO chan *NetInstance
-    ClientSync sync.Mutex
+    incomingHandler func(client *NetInstance, server *NetChannelService) error
+    port int16
+    flags FlagVal
+    pathGate string
+    clientMap map[string]*NetInstance
+    clientIO chan *NetInstance
+    clientSync sync.Mutex
 }
 
 type NetInstance struct {
-    Service *NetChannelService
-    Secret []byte
-    ClientId []byte
-    ClientIdString string
-    ClientTX *bytes.Buffer /* Data waiting to be transmitted */
-    ClientRX *bytes.Buffer /* Data that is waiting to be read */
-    IOSync sync.Mutex
+    service *NetChannelService
+    secret []byte
+    clientId []byte
+    clientIdString string
+    clientTX *bytes.Buffer /* Data waiting to be transmitted */
+    clientRX *bytes.Buffer /* Data that is waiting to be read */
+    iOSync sync.Mutex
 }
 
 func (f *NetInstance) Len() int {
-    return f.ClientRX.Len()
+    return f.clientRX.Len()
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
-    f.IOSync.Lock()
-    defer f.IOSync.Unlock()
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock()
 
-    if f.ClientRX.Len() == 0 {
+    if f.clientRX.Len() == 0 {
         return 0, io.EOF
     }
 
-    data := make([]byte, f.ClientRX.Len())
-    f.ClientRX.Read(data)
+    data := make([]byte, f.clientRX.Len())
+    f.clientRX.Read(data)
 
     return len(data), io.EOF
 }
 
 func (f *NetInstance) Write(p []byte) (wrote int, err error) {
-    f.IOSync.Lock()
-    defer f.IOSync.Unlock()
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock()
 
-    f.ClientTX.Write(p)
+    f.clientTX.Write(p)
 
     return len(p), nil
 }
@@ -148,7 +148,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
              if decoded_key, err = util.B64D(k); err != nil {
                  continue
              }
-             client := ChannelService.ClientMap[string(decoded_key)]
+             client := ChannelService.clientMap[string(decoded_key)]
              if client != nil {
                  /*
                   * An active connection exists.
@@ -161,8 +161,8 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                  value := key[k]
                  var client_id string
                  var data []byte = nil
-                 if client_id, data, err = decryptData(value[0], client.Secret);
-                 err != nil || strings.Compare(client_id, client.ClientIdString) != 0 {
+                 if client_id, data, err = decryptData(value[0], client.secret);
+                 err != nil || strings.Compare(client_id, client.clientIdString) != 0 {
                      ChannelService.CloseClient(client)
                      return
                  }
@@ -225,12 +225,12 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     util.DebugOutHex(secret)
 
     var instance = &NetInstance{
-        Service: ChannelService,
-        Secret: secret,
-        ClientId: client_id[:],
-        ClientIdString: hex.EncodeToString(client_id[:]),
-        ClientRX: &bytes.Buffer{},
-        ClientTX: &bytes.Buffer{},
+        service: ChannelService,
+        secret: secret,
+        clientId: client_id[:],
+        clientIdString: hex.EncodeToString(client_id[:]),
+        clientRX: &bytes.Buffer{},
+        clientTX: &bytes.Buffer{},
     }
 
     ClientIO <- instance
@@ -243,15 +243,15 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
     if util.IsAsciiPrintable(string(raw_data)) {
         var command = string(raw_data)
         if strings.Compare(command, CHECK_STREAM_DATA) == 0 {
-            f.IOSync.Lock()
-            defer f.IOSync.Unlock()
+            f.iOSync.Lock()
+            defer f.iOSync.Unlock()
 
             util.DebugOut("Received get data request")
 
             /* ADDME -- this code should be using channels */
             var c = CONTROLLER_RESPONSE_TIMEOUT * 100
             for ; c != 0; c -= 1 {
-                if f.ClientTX.Len() != 0 {
+                if f.clientTX.Len() != 0 {
                     break
                 }
                 util.Sleep(10 * time.Millisecond)
@@ -259,19 +259,19 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
             if c == 0 {
                 /* Time out -- no data to be sent */
-                if f.ClientTX.Len() == 0 {
+                if f.clientTX.Len() == 0 {
                     writer.WriteHeader(http.StatusOK)
                     return nil
                 }
             }
 
-            raw_data = make([]byte, f.ClientTX.Len())
-            f.ClientTX.Read(raw_data)
-            encrypted, _ := encryptData(raw_data, f.Secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            raw_data = make([]byte, f.clientTX.Len())
+            f.clientTX.Read(raw_data)
+            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.clientIdString)
             return sendResponse(writer, encrypted)
 
         } else if strings.Compare(command, TEST_CONNECTION_DATA) == 0 {
-            encrypted, _ := encryptData(raw_data, f.Secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.clientIdString)
             return sendResponse(writer, encrypted)
 
         } else if strings.Compare(command, TERMINATE_CONNECTION_DATA) == 0 {
@@ -281,9 +281,9 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
     }
 
     /* Append data to read */
-    f.IOSync.Lock()
-    defer f.IOSync.Unlock()
-    f.ClientRX.Write(raw_data)
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock()
+    f.clientRX.Write(raw_data)
 
     return nil
 }
@@ -430,9 +430,9 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
 }
 
 func (f *NetChannelService) CloseClient(client *NetInstance) {
-    f.ClientSync.Lock()
-    delete(f.ClientMap, client.ClientIdString)
-    f.ClientSync.Unlock()
+    f.clientSync.Lock()
+    delete(f.clientMap, client.clientIdString)
+    f.clientSync.Unlock()
 }
 
 func (f *NetChannelService) CloseService() {
@@ -448,16 +448,16 @@ func (f *NetInstance) Close() {
 func CreateServer(path_gate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
     var server = &NetChannelService{
-        IncomingHandler: handler,
-        Port: port,
-        Flags: flags,
-        PathGate: path_gate,
+        incomingHandler: handler,
+        port: port,
+        flags: flags,
+        pathGate: path_gate,
 
         /* Map consists of key: ClientId (string) and value: *NetInstance object */
-        ClientMap: make(map[string]*NetInstance),
-        ClientIO: make(chan *NetInstance),
+        clientMap: make(map[string]*NetInstance),
+        clientIO: make(chan *NetInstance),
     }
-    ClientIO = server.ClientIO
+    ClientIO = server.clientIO
     ChannelService = server
 
     go func (svc *NetChannelService) {
@@ -465,30 +465,30 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
         wg.Add(1)
 
         for {
-            client, ok := <- svc.ClientIO
+            client, ok := <- svc.clientIO
             if !ok {
                 break /* Close the processor */
             }
 
-            svc.ClientSync.Lock()
+            svc.clientSync.Lock()
 
-            svc.ClientMap[client.ClientIdString] = client
-            if err := svc.IncomingHandler(client, svc); err != nil {
+            svc.clientMap[client.clientIdString] = client
+            if err := svc.incomingHandler(client, svc); err != nil {
                 svc.CloseClient(client)
             }
 
-            svc.ClientSync.Unlock()
+            svc.clientSync.Unlock()
         }
     } (server)
 
     go func(svc *NetChannelService) {
         /* FIXME -- find a way of closing this thread once CloseService() is invoked */
-        http.HandleFunc(server.PathGate, handleClientRequest)
+        http.HandleFunc(server.pathGate, handleClientRequest)
 
-        if (svc.Flags & FLAG_DEBUG) > 1 {
-            util.DebugOut("[+] Handling request for path :" + svc.PathGate)
+        if (svc.flags & FLAG_DEBUG) > 1 {
+            util.DebugOut("[+] Handling request for path :" + svc.pathGate)
         }
-        if err := http.ListenAndServe(":" + util.IntToString(int(server.Port)),nil); err != nil {
+        if err := http.ListenAndServe(":" + util.IntToString(int(server.port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd")
         }
     } (server)
