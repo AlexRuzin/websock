@@ -89,6 +89,10 @@ type NetChannelClient struct {
     clientIdString  string
     responseData    *bytes.Buffer
     responseSync    sync.Mutex
+    requestSync     sync.Mutex
+    transport       *http.Transport
+    request         *http.Request
+    cancelled       bool
 }
 
 type TransferUnit struct {
@@ -122,7 +126,17 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
 }
 
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
-    return 0, io.EOF
+    if f.transport != nil {
+        f.cancelled = true
+        f.transport.CancelRequest(f.request)
+    }
+
+    _, wrote, err := f.writeStream(p, 0)
+    if err != nil {
+        return 0, err
+    }
+
+    return wrote, io.EOF
 }
 
 func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient, error) {
@@ -148,6 +162,9 @@ func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient
         host: main_url.Host,
         secret: nil,
         responseData: &bytes.Buffer{},
+        transport: nil,
+        request: nil,
+        cancelled: false,
     }
 
     if (io_channel.flags & FLAG_DEBUG) > 1 {
@@ -206,7 +223,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     /* Perform HTTP TX */
-    body, tx_err := sendTransmission(HTTP_VERB /* POST */, f.inputURI, parm_map)
+    body, tx_err := sendTransmission(HTTP_VERB /* POST */, f.inputURI, parm_map, f)
     if tx_err != nil && tx_err != io.EOF {
         return tx_err
     }
@@ -278,6 +295,11 @@ func (f *NetChannelClient) InitializeCircuit() error {
         for {
             read, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
             if err != nil {
+                if err == io.EOF {
+                    /* Connection is closed due to a Write() request */
+                    util.Sleep(10 * time.Millisecond)
+                    continue
+                }
                 client.Close()
                 return
             }
@@ -337,6 +359,9 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         return 0,0, util.RetErrStr("Client not connected")
     }
 
+    f.requestSync.Lock()
+    defer f.requestSync.Unlock()
+
     /* Internal commands are based on the FlagVal bit flag */
     if len(p) == 0 && flags != 0 {
         p = func (flags FlagVal) []byte {
@@ -345,7 +370,6 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
                     return []byte(iCommands[k].command)
                 }
             }
-
             return nil
         } (flags)
     }
@@ -366,7 +390,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
     key := util.B64E([]byte(f.clientIdString))
     parm_map[key] = value
 
-    body, err := sendTransmission(HTTP_VERB, f.inputURI, parm_map)
+    body, err := sendTransmission(HTTP_VERB, f.inputURI, parm_map, f)
     if err != nil {
         return 0,0, err
     }
@@ -484,7 +508,7 @@ func encodeKeyValue (high int) string {
     } (high)
 }
 
-func sendTransmission(verb string, URI string, m map[string]string) (response []byte, err error) {
+func sendTransmission(verb string, URI string, m map[string]string, client *NetChannelClient) (response []byte, err error) {
     form := url.Values{}
     for k, v := range m {
         form.Set(k, v)
@@ -522,6 +546,8 @@ func sendTransmission(verb string, URI string, m map[string]string) (response []
     resp_io := make(chan *http.Response)
     tr := &http.Transport{}
     http_client := &http.Client{Transport: tr}
+    client.request = req
+    client.transport = tr
     go func (r *http.Request) {
         resp, tx_status := http_client.Do(r)
         if tx_status != nil {
@@ -533,6 +559,13 @@ func sendTransmission(verb string, URI string, m map[string]string) (response []
 
     resp, ok := <- resp_io
     if !ok {
+        if client.cancelled == true {
+            /* Forced write request */
+            client.transport = nil
+            client.request = nil
+            client.cancelled = false
+            return nil, io.EOF
+        }
         return nil, util.RetErrStr("Failure in client request")
     }
     defer close(resp_io)
