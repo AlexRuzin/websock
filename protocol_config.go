@@ -73,12 +73,6 @@ const HTTP_CONTENT_TYPE = "application/x-www-form-urlencoded"
 const HTTP_VERB = "POST"
 
 /*
- * testCircuit() sends this data, and the server responds with its own
- */
-const TEST_CLIENT_REQUEST = "Testing client connection"
-const TEST_SERVER_RESPONSE = "Testing server response"
-
-/*
  * Constants beyond this point -- do not change these values
  */
 const CHECK_STREAM_DATA = "check stream data"
