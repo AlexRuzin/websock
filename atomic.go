@@ -55,6 +55,7 @@ const (
     FLAG_TEST_CONNECTION
     FLAG_COMPRESSION
     FLAG_CHECK_STREAM_DATA
+    FLAG_CLIENT_TERMINATED
 )
 
 type internalCommands struct {
@@ -515,11 +516,23 @@ func sendTransmission(verb string, URI string, m map[string]string) (response []
     }
     req.Header.Set("Host", uri.Hostname()) // FIXME -- check that the URI is correct for Host!!!
 
-    http_client := &http.Client{}
-    resp, tx_status := http_client.Do(req)
-    if tx_status != nil {
-        return nil, tx_status
+    resp_io := make(chan *http.Response)
+    tr := &http.Transport{}
+    http_client := &http.Client{Transport: tr}
+    go func (r *http.Request) {
+        resp, tx_status := http_client.Do(r)
+        if tx_status != nil {
+            close(resp_io)
+            return
+        }
+        resp_io <- resp
+    } (req)
+
+    resp, ok := <- resp_io
+    if !ok {
+        return nil, util.RetErrStr("Failure in client request")
     }
+    defer close(resp_io)
 
     if resp.Status != "200 OK" {
         return nil, util.RetErrStr("HTTP 200 OK not returned")
