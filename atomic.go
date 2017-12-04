@@ -30,6 +30,7 @@ import (
     "net/http"
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
+    "github.com/AlexRuzin/cryptog"
     "crypto/elliptic"
     "hash/crc64"
     "crypto/md5"
@@ -37,7 +38,6 @@ import (
     "io/ioutil"
     "encoding/hex"
     "time"
-    "github.com/AlexRuzin/cryptog"
     "encoding/gob"
     "sync"
 )
@@ -88,7 +88,6 @@ type NetChannelClient struct {
     clientId        []byte
     clientIdString  string
     responseData    *bytes.Buffer
-    requestData     *bytes.Buffer
     responseSync    sync.Mutex
 }
 
@@ -98,6 +97,32 @@ type TransferUnit struct {
     Data            []byte
     DecryptedSum    string
     Direction       FlagVal
+}
+
+func (f *NetChannelClient) Len() int {
+    f.responseSync.Lock()
+    defer f.responseSync.Unlock()
+    return f.responseData.Len()
+}
+
+func (f *NetChannelClient) Read(p []byte) (read int, err error) {
+    f.responseSync.Lock()
+    defer f.responseSync.Unlock()
+
+    if f.Len() == 0 {
+        return 0, io.EOF
+    }
+
+    read, err = f.responseData.Read(p)
+    if err != io.EOF {
+        return read, err
+    }
+
+    return read, io.EOF
+}
+
+func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+    return 0, io.EOF
 }
 
 func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient, error) {
@@ -308,9 +333,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         return 0,0, util.RetErrStr("Client not connected")
     }
 
-    f.responseSync.Lock()
-    defer f.responseSync.Unlock()
-
+    /* Internal commands are based on the FlagVal bit flag */
     if len(p) == 0 && flags != 0 {
         p = func (flags FlagVal) []byte {
             for k := range iCommands {
