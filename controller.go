@@ -489,7 +489,7 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
             util.DebugOut("[+] Handling request for path :" + svc.pathGate)
         }
         if err := http.ListenAndServe(":" + util.IntToString(int(server.port)),nil); err != nil {
-            util.ThrowN("panic: Failure in loading httpd")
+            util.ThrowN("panic: Failure in loading httpd.")
         }
     } (server)
 
