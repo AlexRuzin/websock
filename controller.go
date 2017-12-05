@@ -244,7 +244,9 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
      */
     if util.IsAsciiPrintable(string(raw_data)) {
         var command = string(raw_data)
-        if strings.Compare(command, CHECK_STREAM_DATA) == 0 {
+
+        switch command {
+        case CHECK_STREAM_DATA:
             f.iOSync.Lock()
             defer f.iOSync.Unlock()
 
@@ -271,12 +273,10 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             f.clientTX.Read(raw_data)
             encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.clientIdString)
             return sendResponse(writer, encrypted)
-
-        } else if strings.Compare(command, TEST_CONNECTION_DATA) == 0 {
+        case TEST_CONNECTION_DATA:
             encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.clientIdString)
             return sendResponse(writer, encrypted)
-
-        } else if strings.Compare(command, TERMINATE_CONNECTION_DATA) == 0 {
+        case TERMINATE_CONNECTION_DATA:
             /* FIXME */
             util.WaitForever()
         }
