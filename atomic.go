@@ -55,6 +55,7 @@ const (
     FLAG_TEST_CONNECTION
     //FLAG_COMPRESSION
     FLAG_CHECK_STREAM_DATA
+    FLAG_TRANSMIT_CLIENT_INFO
 )
 
 type internalCommands struct {
@@ -96,6 +97,8 @@ type NetChannelClient struct {
 }
 
 type TransferUnit struct {
+    GlobalIP        string
+    LocalIP         string
     TimeStamp       string
     ClientID        string
     Data            []byte
@@ -446,6 +449,7 @@ func encryptData(data []byte, secret []byte, flags FlagVal, client_id string) (e
             return hex.EncodeToString(data_sum[:])
         } (data),
         Direction: flags,
+
     }
     copy(tx.Data, data)
 
