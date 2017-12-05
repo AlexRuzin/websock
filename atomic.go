@@ -477,7 +477,7 @@ func encryptData(data []byte, secret []byte, flags FlagVal, client_id string) (e
 
 func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
     /***********************************************************************************************
-     * Tranmis the public key ECDH key to server. The transmission buffer contains:                *
+     * Transmits the public key ECDH key to server. The transmission buffer contains:              *
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])  *
      ***********************************************************************************************/
     var pool = bytes.Buffer{}
@@ -502,10 +502,6 @@ func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
     return []byte(b64_buf), nil
 }
 
-/*
- * Check if the TCP port is reachcable, then attempt to determine
- *  if our service is running on it
- */
 func encodeKeyValue (high int) string {
     return func (h int) string {
         return util.B64E([]byte(util.RandomString(util.RandInt(1, high))))
