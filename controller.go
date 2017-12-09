@@ -91,7 +91,7 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
 
     f.clientTX.Write(p)
 
-    return len(p), nil
+    return len(p), io.EOF
 }
 
 /* Create circuit -OR- process gate requests */
