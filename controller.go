@@ -81,6 +81,7 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
 
     data := make([]byte, f.clientRX.Len())
     f.clientRX.Read(data)
+    copy(p, data)
 
     return len(data), io.EOF
 }
@@ -247,10 +248,9 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
         switch command {
         case CHECK_STREAM_DATA:
-            f.iOSync.Lock()
-            defer f.iOSync.Unlock()
-
-            util.DebugOut("Received get data request")
+            if (channelService.flags & FLAG_DEBUG) > 0 {
+                util.DebugOut("Received get data request")
+            }
 
             /* ADDME -- this code should be using channels */
             var c = CONTROLLER_RESPONSE_TIMEOUT * 100
