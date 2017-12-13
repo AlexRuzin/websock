@@ -1,23 +1,24 @@
 # websock
-A socket-based covert data transfer protocol that uses HTTP without TLS. All data that is transmitted uses state-of-the-art cryptography to protect data transmitted through the stream.
+A socket-based covert data transfer protocol that uses encrypted data over HTTP, without TLS/SSL, and therefore without the need of any self-signed certificates. The client/server negotiate a key using ECDH, which is paired with a custom RC4 cipher implementation for data transfer.
 
-The goal of this project is to create a socket that transmits data that cannot have a static signature placed against it, and further will use advanced cryptographic ciphers to maintain secrecy.
+Due to the nature of the ephemeral key negotiation, it is inferred that a static signature is not possible. This makes websock ideal for discrete and secure communication.
 
 ## Synopsis
-On the highest level, this communication protocol uses a socket driven communication to send data to and from the client to server and back, much like POSIX or WinSocks. 
+The `websock` protocol provides an API that is similar to reading or writing to POSIX or WinSock sockets, except a compliant Reader/Writer interface is used.
 
-Under the radar, each write to the socket is transmitted using HTTP (without TLS/SSL), through a series of parameters that are encrypted using the RC4 cipher. The RC4 implementation itself [https://github.com/AlexRuzin/cryptog], uses an ephemeral IV to maintain a covert channel.
+HTTP is the overlaying protocol from which all data is sent. The client will send a request to the server to construct a circuit. The initial stage requires key negotiation -- in specific *Elliptic Curve Diffie-Hellman* [https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman] is uesd. The public keys shared over the wire are serialized, XOR'd with a random key, and base64 encoded. The public key exchanges are done using HTTP POST parameters, which are also randomized.
 
-During the initialization stage, `websock` makes use of Elliptic-curve Diffie-Hellman [https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman] to negotiate a secret key. This process itself uses xor/shift and base64 encoding, to prevent a regex against the serializer.
+Once the secret key has been generated using the ECDH key exchange, all data will be transmitted using a custom RC4 implementation [https://github.com/AlexRuzin/cryptog], which makes use of an Initialization Vector (IV), and a hardcoded value that will maintain data integrity.
+
 
 ## Features
-1. The NIST P384 curve is used to safely and covertly negotiate a key between the controller and atom (client)
-2. An ephemeral Initialization Vector (IV) was implemented in the `cryptog.RC4_*` code, so even if the same data is sent, a completely different encoding will be shown.
-3. The HTTP implementation uses standard headers, including normal a common `User-Agent`, and `Content-Type`.
+1. The NIST P384 curve is used to safely and covertly negotiate a key between the controller and atom (client). Any NIST-compliant curve may be used to strengthen the key exchange challenge.
+2. An ephemeral Initialization Vector (IV) was implemented in the `cryptog.RC4_*` code, so even if the same data is sent, implementing a kind of *perfect forward secrecy*.
+3. The HTTP implementation uses standard headers, including normal a common `User-Agent`, and `Content-Type`, which may be configured.
 4. Key negotiation uses a covert set of key/value pairs in the HTTP POST parameter. The response, as well, is xor-encoded using an ephemeral key.
-5. Simple use of the Reader/Writer interfaces to read/write to the socket
+5. Simple use of the Reader/Writer interfaces to read/write to the stream. 
 
-## Controller API [`NetChannelService`]
+## Server API [`NetChannelService`]
 
 The API consists of the initialization functions along with the methods used to read/write to the streams.
 
@@ -25,16 +26,18 @@ The API consists of the initialization functions along with the methods used to 
 
 #### [Representation of the Server Object]
 
-This object represents the `websock` server. 
+This object represents the `websock` server. This object is returned once the service has been initialized using `CreateServer()`. Please note that the value of `NetChannelService.IncomingHandler` may be modified at any time, but may cause undesired behaviour.
 
 ```go
 type NetChannelService struct {
-    Port int16                             // Listener port
-    Flags int                              // Any flags (see flags section)
-    PathGate string                        // Gateway URI
-    ClientMap map[string]*NetInstance      // Mapping between client objects to client IDs
-    ClientIO chan *NetInstance             // Channel that will receive new client connections
-    ClientSync sync.Mutex                  // Synchronization object that is invoked during I/O operations
+    /* Handler for new clients */
+    IncomingHandler func(client *NetInstance, server *NetChannelService) error /* Handler for new clients */
+
+    /* Flags may be modified at any time */
+    Flags FlagVal /* Flags may be modified at any time */
+
+    /* Non-exported members */
+    [...]
 }
 ```
 
@@ -44,38 +47,51 @@ Each client is represented by this structure by the server's `NetChannelService`
 
 ```go
 type NetInstance struct {
-    Secret []byte                          // The shared secret after ECDH negotiation
-    ClientId []byte                        // Unique client ID
-    ClientIdString string                  // Same as above, but in string format
-    ClientData [][]byte                    // Contains an array of data waiting to be read/sent by/to the client
+    ClientIdString string /* Unique identifier that represents the client connection */
+
+    /* Non-exported members */
+    [...]
 }
 ```
 
 ### Initialization on the server side
 
-Creating the `websock` server is simple. It requires a TCP listener port, usually port 80. A gate URI is required as well.
+Creating the `websock` server is simple. It requires a TCP listener port, usually port 80. A gate path is required as well. Any kind of gate path may be used (i.e. `/gate.php`, `/newclient.php`, `/`)
 
-Lastly, flags must be set to indicate whether or not the I/O methods will be blocking or non-blocking.
-
-The initialization method will return a service object, from which reading and writing will be possible. A handler method is required that will handle all new client requests. Each new client is represented by the `NetInstance` object.
+The initialization method will return a service object, `NetChannelService`, which will transparently contain a vector of all connected clients. A handler method is required that will handle all new client requests, `NetChannelService.IncomingHandler`. Each new client is represented by the below `NetInstance` object.
 
 ```go
 package websock
 
 var ServerInstance *NetChannelService = nil
 var err error = nil
-ServerInstance, err = websock.CreateServer("/gate.php", 80, FLAG_BLOCKING)
+ServerInstance, err = websock.CreateServer("/gate.php", 
+                                           80, 
+                                           FLAG_BLOCKING,
+                                           clientHandlerFunction)
 if err != nil {
     panic(err.Error())
 }
 ```
 
-### Setting the `NetInstance` handler
+The `clientHandlerFunction` will handle all new requests. The `NetInstance` structure will be passed in this structure, which will allow the calling application to read or write to the instance. 
 
-This callback will handle events in which a new client has connected and established an encrypted connection with the controller.
 ```go
-//TODO
-```
+func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
+    /* Write data from the server to the client */
+    client.Write([]byte("some random data"))
+
+
+    /* Check if any data is available from the client, if so, then read it */
+    util.SleepSeconds(25)
+    if client.Len() != 0 {
+        data := make([]byte, client.Len())
+        client.Read(data)
+        util.DebugOut(string(data))
+    }
+    return nil
+}
+``` 
 
 ### Closing the service
 
@@ -93,13 +109,74 @@ To close a client connection requires an invocation of a method in the `NetChann
 ServerInstance.CloseClient(client *NetInstance)
 ```
 
-### Write to the stream
+### Client I/O from the Server-side
 
-Writing to the stream requires a simple call to the `NetInstance.WriteStream()` method.
+Writing to the stream requires a simple call to the `NetInstance.Write()` method. This complies with the io.Writer interface.
 
 ```go
-data_sent, err := ServerInstance.WriteStream(data []byte, client *NetInstance)
-if err != nil || len(data) != data_sent {
-    panic(errors.New("Failed to write to the stream"))
+func (f *NetInstance) Write(p []byte) (wrote int, err error) {
+    /* Once all data is written, the success error code will be io.EOF */
+    return len(p), io.EOF
 }
 ```
+
+Reading from the client stream requires a check for data in the stream first, using `NetInstance.Len()`, followed by a call to `NetInstance.Read()`.
+
+```go
+func (f *NetInstance) Len() int {
+    /* Return the length, if any */
+}
+
+func (f *NetInstance) Read(p []byte) (read int, err error) {
+    /* Once all data is read, the io.EOF code is returned */
+    return len(data), io.EOF
+}
+```
+
+## Client API [`NetChannelClient`]
+
+Having the client connect requires a call to initialize the client library by calling `websock.BuildChannel()`, where the target URI is passed, in the form of `http://domain.com:7676/handler.php`. Several flags may be passed as well, which will be elaborated on further below. Note that the client will *not* connect to the server at this point. The `websock.BuildChannel()` method returns a `NetChannelClient` structure, which will implement the Read/Write functions.
+
+```go
+client, err := BuildChannel(gate_uri, FLAG_DEBUG)
+if err != nil || client == nil {
+    D(err.Error())
+    T("Cannot build net channel")
+}
+```
+
+Next, the client must connect to the server by invoking the `NetChannelClient.InitializeCircuit()` method.
+
+```go
+if err := client.InitializeCircuit(); err != nil {
+    D(err.Error())
+    T("Service is not responding")
+}
+```
+
+### Client I/O
+
+Reading and writing to the client socket requires the use of the Read/Write functions, which implement the standard Reader/Writer interface. The prototypes of these functions, which are members of `NetChannelClient`, are described below:
+
+```go
+/* Returns the length of the read buffer, indicating data was sent from the server to the client */
+func (f *NetChannelClient) Len() int
+```
+
+```go
+/* Read into p until the buffer is depleted. An io.EOF error will be returned once the buffer is depleted */
+func (f *NetChannelClient) Read(p []byte) (read int, err error)
+```
+
+```go
+/* Write p into the buffer. Written returns the len(p), and io.EOF is returned if there was enough space in the buffer */
+func (f *NetChannelClient) Write(p []byte) (written int, err error)
+```
+
+## Protocol Configuration
+
+All configuration to the protocol is done by editing the `protocol_config.go` file, which will contain instructions on each configurable variable.
+
+## Credits
+
+All design and programming done by AlexRuzin for educational and research purposes. Please distribute with the attached MIT license. Contact, if you have any questions, or fixes, at stan [dot] ruzin [at] gmail [dot] com. 
