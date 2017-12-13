@@ -48,20 +48,28 @@ var clientIO chan *NetInstance = nil
 var channelService *NetChannelService = nil
 
 type NetChannelService struct {
-    incomingHandler func(client *NetInstance, server *NetChannelService) error
-    port int16
-    flags FlagVal
-    pathGate string
-    clientMap map[string]*NetInstance
-    clientIO chan *NetInstance
-    clientSync sync.Mutex
+    /* Handler for new clients */
+    IncomingHandler         func(client *NetInstance, server *NetChannelService) error
+
+    /* Flags may be modified at any time */
+    Flags                   FlagVal
+
+    /* Non-exported members */
+    port                    int16
+    pathGate                string
+    clientMap               map[string]*NetInstance
+    clientIO                chan *NetInstance
+    clientSync              sync.Mutex
 }
 
 type NetInstance struct {
+    /* Unique identifier that represents the client connection */
+    ClientIdString string
+
+    /* Non-exported members */
     service *NetChannelService
     secret []byte
     clientId []byte
-    clientIdString string
     clientTX *bytes.Buffer /* Data waiting to be transmitted */
     clientRX *bytes.Buffer /* Data that is waiting to be read */
     iOSync sync.Mutex
@@ -163,7 +171,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                  var client_id string
                  var data []byte = nil
                  if client_id, data, err = decryptData(value[0], client.secret);
-                 err != nil || strings.Compare(client_id, client.clientIdString) != 0 {
+                 err != nil || strings.Compare(client_id, client.ClientIdString) != 0 {
                      channelService.CloseClient(client)
                      return
                  }
@@ -222,7 +230,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         return
     }
 
-    if (channelService.flags & FLAG_DEBUG) > 1 {
+    if (channelService.Flags & FLAG_DEBUG) > 1 {
         util.DebugOut("Server-side secret:")
         util.DebugOutHex(secret)
     }
@@ -231,7 +239,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         service: channelService,
         secret: secret,
         clientId: client_id[:],
-        clientIdString: hex.EncodeToString(client_id[:]),
+        ClientIdString: hex.EncodeToString(client_id[:]),
         clientRX: &bytes.Buffer{},
         clientTX: &bytes.Buffer{},
     }
@@ -248,7 +256,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
         switch command {
         case CHECK_STREAM_DATA:
-            if (channelService.flags & FLAG_DEBUG) > 0 {
+            if (channelService.Flags & FLAG_DEBUG) > 0 {
                 util.DebugOut("Received get data request")
             }
 
@@ -271,10 +279,10 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
             raw_data = make([]byte, f.clientTX.Len())
             f.clientTX.Read(raw_data)
-            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.clientIdString)
+            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
         case TEST_CONNECTION_DATA:
-            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.clientIdString)
+            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
         case TERMINATE_CONNECTION_DATA:
             /* FIXME */
@@ -433,7 +441,7 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
 
 func (f *NetChannelService) CloseClient(client *NetInstance) {
     f.clientSync.Lock()
-    delete(f.clientMap, client.clientIdString)
+    delete(f.clientMap, client.ClientIdString)
     f.clientSync.Unlock()
 }
 
@@ -450,9 +458,9 @@ func (f *NetInstance) Close() {
 func CreateServer(path_gate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
     var server = &NetChannelService{
-        incomingHandler: handler,
+        IncomingHandler: handler,
         port: port,
-        flags: flags,
+        Flags: flags,
         pathGate: path_gate,
 
         /* Map consists of key: ClientId (string) and value: *NetInstance object */
@@ -474,8 +482,8 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
 
             svc.clientSync.Lock()
 
-            svc.clientMap[client.clientIdString] = client
-            if err := svc.incomingHandler(client, svc); err != nil {
+            svc.clientMap[client.ClientIdString] = client
+            if err := svc.IncomingHandler(client, svc); err != nil {
                 svc.CloseClient(client)
             }
 
@@ -487,7 +495,7 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
         /* FIXME -- find a way of closing this thread once CloseService() is invoked */
         http.HandleFunc(server.pathGate, handleClientRequest)
 
-        if (svc.flags & FLAG_DEBUG) > 1 {
+        if (svc.Flags & FLAG_DEBUG) > 1 {
             util.DebugOut("[+] Handling request for path :" + svc.pathGate)
         }
         if err := http.ListenAndServe(":" + util.IntToString(int(server.port)),nil); err != nil {
