@@ -40,6 +40,7 @@ import (
     "time"
     "encoding/gob"
     "sync"
+    "strconv"
 )
 
 /************************************************************
@@ -142,7 +143,7 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     return wrote, io.EOF
 }
 
-func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient, error) {
+func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
     if (flags & FLAG_DO_NOT_USE) == 1 {
         return nil, util.RetErrStr("Invalid flag: FLAG_DO_NOT_USE")
     }
@@ -155,10 +156,11 @@ func BuildChannel(gate_uri string, port int16, flags FlagVal) (*NetChannelClient
         return nil, util.RetErrStr("HTTP scheme must not use TLS")
     }
 
+    port, _ := strconv.Atoi(main_url.Port())
     var io_channel = &NetChannelClient{
         controllerURL: main_url,
         inputURI: gate_uri,
-        port: port,
+        port: int16(port),
         flags: flags,
         connected: false,
         path: main_url.Path,
