@@ -66,7 +66,7 @@ func TestMainChannel(t *testing.T) {
             D("Building the client transporter")
 
             gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-            client, err := BuildChannel(gate_uri, CONTROLLER_PORT, FLAG_DEBUG)
+            client, err := BuildChannel(gate_uri, FLAG_DEBUG)
             if err != nil || client == nil {
                 D(err.Error())
                 T("Cannot build net channel")
@@ -101,7 +101,7 @@ func TestMainChannel(t *testing.T) {
         D("Building the client transporter")
 
         gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-        client, err := BuildChannel(gate_uri, CONTROLLER_PORT, FLAG_DEBUG)
+        client, err := BuildChannel(gate_uri, FLAG_DEBUG)
         if err != nil || client == nil {
             D(err.Error())
             T("Cannot build net channel")
