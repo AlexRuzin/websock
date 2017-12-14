@@ -76,19 +76,23 @@ type NetInstance struct {
 }
 
 func (f *NetInstance) Len() int {
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock()
+
     return f.clientRX.Len()
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
-    f.iOSync.Lock()
-    defer f.iOSync.Unlock()
-
     if f.clientRX.Len() == 0 {
         return 0, io.EOF
     }
 
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock()
+
     data := make([]byte, f.clientRX.Len())
     f.clientRX.Read(data)
+    f.clientRX.Reset()
     copy(p, data)
 
     return len(data), io.EOF
@@ -279,6 +283,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
             raw_data = make([]byte, f.clientTX.Len())
             f.clientTX.Read(raw_data)
+            f.clientTX.Reset() /* FIXME */
             encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
         case TEST_CONNECTION_DATA:
