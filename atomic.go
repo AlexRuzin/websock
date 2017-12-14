@@ -110,23 +110,17 @@ type TransferUnit struct {
 func (f *NetChannelClient) Len() int {
     f.responseSync.Lock()
     defer f.responseSync.Unlock()
+
     return f.responseData.Len()
 }
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
-    f.responseSync.Lock()
-    defer f.responseSync.Unlock()
-
     if f.Len() == 0 {
         return 0, io.EOF
     }
 
-    read, err = f.responseData.Read(p)
-    if err != io.EOF {
-        return read, err
-    }
-
-    return read, io.EOF
+    read, err = f.readStream(p)
+    return
 }
 
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
@@ -349,11 +343,19 @@ func (f *NetChannelClient) testCircuit() error {
         return err
     }
 
+    if f.responseData.Len() == 0 {
+        return util.RetErrStr("testCircuit() failed on the server side")
+    }
+
     var response_data = make([]byte, f.responseData.Len())
-    f.responseData.Read(response_data)
+    read, err := f.readStream(response_data)
+    if err != io.EOF || read != len(TEST_CONNECTION_DATA) {
+        return util.RetErrStr("testCircuit() invalid response from server side")
+    }
+
     if !util.IsAsciiPrintable(string(response_data)) ||
         strings.Compare(string(response_data), TEST_CONNECTION_DATA) != 0 {
-        return util.RetErrStr("Invalid response. Test connection failed")
+        return util.RetErrStr("testCircuit() data corruption from server side")
     }
 
     return nil
@@ -409,26 +411,31 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         if strings.Compare(client_id, f.clientIdString) != 0 {
             return len(body), len(p), util.RetErrStr("Invalid server response")
         }
+
+        f.responseSync.Lock()
+        defer f.responseSync.Unlock()
+
         f.responseData.Write(response_data)
     }
 
     return len(body), len(p), nil
 }
 
-func (f *NetChannelClient) readStream() (read []byte, err error) {
+func (f *NetChannelClient) readStream(p []byte) (read int, err error) {
     if f.connected == false {
-        return nil, util.RetErrStr("Client not connected")
+        return 0, util.RetErrStr("Client not connected")
+    }
+
+    read = f.responseData.Len()
+    if read == 0 {
+        return 0, io.EOF
     }
 
     f.responseSync.Lock()
     defer f.responseSync.Unlock()
 
-    if f.responseData.Len() == 0 {
-        return nil, io.EOF
-    }
-
-    read = make([]byte, f.responseData.Len())
-    f.responseData.Read(read)
+    f.responseData.Read(p)
+    f.responseData.Reset() /* FIXME */
 
     return read, io.EOF
 }
