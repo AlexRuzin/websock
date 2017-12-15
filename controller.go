@@ -268,6 +268,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             var c = CONTROLLER_RESPONSE_TIMEOUT * 100
             for ; c != 0; c -= 1 {
                 if f.clientTX.Len() != 0 {
+                    f.iOSync.Lock()
                     break
                 }
                 util.Sleep(10 * time.Millisecond)
@@ -281,10 +282,9 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
                 }
             }
 
-            raw_data = make([]byte, f.clientTX.Len())
-            f.clientTX.Read(raw_data)
-            f.clientTX.Reset() /* FIXME */
-            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            defer f.clientTX.Reset()
+            defer f.iOSync.Unlock()
+            encrypted, _ := encryptData(f.clientTX.Bytes(), f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
         case TEST_CONNECTION_DATA:
             encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
