@@ -260,10 +260,6 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
         switch command {
         case CHECK_STREAM_DATA:
-            if (channelService.Flags & FLAG_DEBUG) > 0 {
-                util.DebugOut("Received get data request")
-            }
-
             /* ADDME -- this code should be using channels */
             var c = CONTROLLER_RESPONSE_TIMEOUT * 100
             for ; c != 0; c -= 1 {
@@ -286,9 +282,11 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             defer f.iOSync.Unlock()
             encrypted, _ := encryptData(f.clientTX.Bytes(), f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
+
         case TEST_CONNECTION_DATA:
             encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
+
         case TERMINATE_CONNECTION_DATA:
             /* FIXME */
             util.WaitForever()
