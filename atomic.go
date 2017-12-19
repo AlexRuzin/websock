@@ -80,33 +80,34 @@ var iCommands = []internalCommands{
 
 type NetChannelClient struct {
     /* Server connection parameters */
-    inputURI        string
-    port            int16
-    path            string
-    host            string
-    controllerURL   *url.URL
+    inputURI            string
+    port                int16
+    path                string
+    host                string
+    controllerURL       *url.URL
 
     /* Identifiers for the client */
-    clientId        []byte
-    clientIdString  string
+    clientId            []byte
+    clientIdString      string
 
     /* ECDH secret */
-    secret          []byte
+    secret              []byte
 
     /* States and configuration */
-    flags           FlagVal
-    connected       bool
+    flags               FlagVal
+    connected           bool
 
     /* Data coming in from the server */
-    responseData    *bytes.Buffer
-    responseSync    sync.Mutex
-    responseWait    chan uint64
+    responseData        *bytes.Buffer
+    responseSync        sync.Mutex
+    responseWait        chan uint64
+    responseWaitSync    sync.Mutex
 
     /* Request elements */
-    requestSync     sync.Mutex
-    transport       *http.Transport
-    request         *http.Request
-    cancelled       bool
+    requestSync         sync.Mutex
+    transport           *http.Transport
+    request             *http.Request
+    cancelled           bool
 }
 
 type TransferUnit struct {
@@ -135,6 +136,8 @@ func (f *NetChannelClient) Wait(timeout time.Duration) (responseLen uint64, err 
     err = WAIT_TIMEOUT_REACHED
 
     /* Flush the existing channel */
+    f.responseWaitSync.Lock()
+    defer f.responseWaitSync.Unlock()
     for len(f.responseWait) > 0 {
         <- f.responseWait
     }
@@ -452,7 +455,10 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         defer f.responseSync.Unlock()
 
         f.responseData.Write(response_data)
+
+        f.responseWaitSync.Lock()
         f.responseWait <- uint64(f.responseData.Len())
+        f.responseWaitSync.Unlock()
     }
 
     return len(body), len(p), nil
