@@ -121,6 +121,10 @@ type TransferUnit struct {
 }
 
 func (f *NetChannelClient) Len() int {
+    if f.connected == false {
+        return 0
+    }
+
     f.responseSync.Lock()
     defer f.responseSync.Unlock()
 
@@ -132,6 +136,10 @@ var (
     WAIT_DATA_RECEIVED = errors.New("data received")
 )
 func (f *NetChannelClient) Wait(timeout time.Duration) (responseLen uint64, err error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
     responseLen = 0
     err = WAIT_TIMEOUT_REACHED
 
@@ -153,6 +161,10 @@ func (f *NetChannelClient) Wait(timeout time.Duration) (responseLen uint64, err 
 }
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
     if f.Len() == 0 {
         return 0, io.EOF
     }
@@ -162,6 +174,10 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
 }
 
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
     if f.transport != nil {
         f.cancelled = true
         f.transport.CancelRequest(f.request)
@@ -316,8 +332,6 @@ func (f *NetChannelClient) InitializeCircuit() error {
         util.DebugOutHex(secret)
     }
 
-    f.connected = true
-
     /*
      * Test the circuit
      */
@@ -397,6 +411,7 @@ func (f *NetChannelClient) testCircuit() error {
         return util.RetErrStr("testCircuit() data corruption from server side")
     }
 
+    f.connected = true
     return nil
 }
 

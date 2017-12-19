@@ -76,6 +76,8 @@ type NetInstance struct {
 
     clientRXWait            chan uint64
     clientRXSync            sync.Mutex
+
+    connected               bool
 }
 
 func (f *NetInstance) Len() int {
@@ -86,6 +88,10 @@ func (f *NetInstance) Len() int {
 }
 
 func (f *NetInstance) Wait(timeout time.Duration) (responseLen uint64, err error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
     responseLen = 0
     err = WAIT_TIMEOUT_REACHED
 
@@ -106,6 +112,10 @@ func (f *NetInstance) Wait(timeout time.Duration) (responseLen uint64, err error
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
     if f.clientRX.Len() == 0 {
         return 0, io.EOF
     }
@@ -122,6 +132,10 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
 }
 
 func (f *NetInstance) Write(p []byte) (wrote int, err error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
 
@@ -269,6 +283,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         ClientIdString: hex.EncodeToString(client_id[:]),
         clientRX: &bytes.Buffer{},
         clientTX: &bytes.Buffer{},
+        connected: false,
     }
 
     clientIO <- instance
@@ -307,6 +322,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             return sendResponse(writer, encrypted)
 
         case TEST_CONNECTION_DATA:
+            f.connected = true
             encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
