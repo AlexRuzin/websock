@@ -330,12 +330,8 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             return sendResponse(writer, encrypted)
 
         case TERMINATE_CONNECTION_DATA:
-            if f.connected == false {
-                return util.RetErrStr("client not connected")
-            }
-
             /* FIXME */
-            util.WaitForever()
+            panic("terminating connection")
         }
     }
 
