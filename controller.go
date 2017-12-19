@@ -326,7 +326,6 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             return sendResponse(writer, encrypted)
 
         case TEST_CONNECTION_DATA:
-            f.connected = true
             encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
@@ -547,6 +546,7 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
             }
 
             svc.clientSync.Unlock()
+            client.connected = true
         }
     } (server)
 
