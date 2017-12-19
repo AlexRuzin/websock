@@ -64,15 +64,18 @@ type NetChannelService struct {
 
 type NetInstance struct {
     /* Unique identifier that represents the client connection */
-    ClientIdString string
+    ClientIdString          string
 
     /* Non-exported members */
-    service *NetChannelService
-    secret []byte
-    clientId []byte
-    clientTX *bytes.Buffer /* Data waiting to be transmitted */
-    clientRX *bytes.Buffer /* Data that is waiting to be read */
-    iOSync sync.Mutex
+    service                 *NetChannelService
+    secret                  []byte
+    clientId                []byte
+    clientTX                *bytes.Buffer /* Data waiting to be transmitted */
+    clientRX                *bytes.Buffer /* Data that is waiting to be read */
+    iOSync                  sync.Mutex
+
+    clientRXWait            chan uint64
+    clientRXSync            sync.Mutex
 }
 
 func (f *NetInstance) Len() int {
@@ -80,6 +83,26 @@ func (f *NetInstance) Len() int {
     defer f.iOSync.Unlock()
 
     return f.clientRX.Len()
+}
+
+func (f *NetInstance) Wait(timeout time.Duration) (responseLen uint64, err error) {
+    responseLen = 0
+    err = WAIT_TIMEOUT_REACHED
+
+    f.clientRXSync.Lock()
+    defer f.clientRXSync.Unlock()
+    for len(f.clientRXWait) > 0 {
+        <- f.clientRXWait
+    }
+
+    select {
+    case responseLen = <- f.clientRXWait:
+        err = WAIT_DATA_RECEIVED
+        return
+    case <- time.After(timeout):
+        responseLen = 0
+        return
+    }
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
@@ -261,8 +284,8 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
         switch command {
         case CHECK_STREAM_DATA:
             /* ADDME -- this code should be using channels */
-            var c = CONTROLLER_RESPONSE_TIMEOUT * 100
-            for ; c != 0; c -= 1 {
+            var timeout = CONTROLLER_RESPONSE_TIMEOUT * 100
+            for ; timeout != 0; timeout -= 1 {
                 if f.clientTX.Len() != 0 {
                     f.iOSync.Lock()
                     break
@@ -270,7 +293,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
                 util.Sleep(10 * time.Millisecond)
             }
 
-            if c == 0 {
+            if timeout == 0 {
                 /* Time out -- no data to be sent */
                 if f.clientTX.Len() == 0 {
                     writer.WriteHeader(http.StatusOK)
@@ -297,6 +320,11 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
     f.clientRX.Write(raw_data)
+
+    f.clientRXSync.Lock()
+    defer f.clientRXSync.Unlock()
+
+    f.clientRXWait <- uint64(f.clientRX.Len())
 
     return nil
 }
