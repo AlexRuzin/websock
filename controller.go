@@ -298,6 +298,10 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
         switch command {
         case CHECK_STREAM_DATA:
+            if f.connected == false {
+                return util.RetErrStr("client not connected")
+            }
+
             /* ADDME -- this code should be using channels */
             var timeout = CONTROLLER_RESPONSE_TIMEOUT * 100
             for ; timeout != 0; timeout -= 1 {
@@ -327,12 +331,20 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             return sendResponse(writer, encrypted)
 
         case TERMINATE_CONNECTION_DATA:
+            if f.connected == false {
+                return util.RetErrStr("client not connected")
+            }
+
             /* FIXME */
             util.WaitForever()
         }
     }
 
     /* Append data to read */
+    if f.connected == false {
+        return util.RetErrStr("client not connected")
+    }
+
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
     f.clientRX.Write(raw_data)
