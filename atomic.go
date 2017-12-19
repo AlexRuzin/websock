@@ -417,7 +417,7 @@ func (f *NetChannelClient) testCircuit() error {
 }
 
 func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, written int, err error) {
-    if f.connected == false {
+    if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
         return 0,0, util.RetErrStr("Client not connected")
     }
 
