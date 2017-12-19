@@ -26,6 +26,7 @@ import (
     "io"
     "strings"
     "bytes"
+    "errors"
     "net/url"
     "net/http"
     "github.com/AlexRuzin/util"
@@ -56,7 +57,6 @@ const (
     FLAG_TEST_CONNECTION
     //FLAG_NO_COMPRESSION
     FLAG_CHECK_STREAM_DATA
-    FLAG_TRANSMIT_CLIENT_INFO
 )
 
 type internalCommands struct {
@@ -79,18 +79,30 @@ var iCommands = []internalCommands{
 }
 
 type NetChannelClient struct {
+    /* Server connection parameters */
     inputURI        string
     port            int16
-    flags           FlagVal
-    connected       bool
     path            string
     host            string
     controllerURL   *url.URL
-    secret          []byte
+
+    /* Identifiers for the client */
     clientId        []byte
     clientIdString  string
+
+    /* ECDH secret */
+    secret          []byte
+
+    /* States and configuration */
+    flags           FlagVal
+    connected       bool
+
+    /* Data coming in from the server */
     responseData    *bytes.Buffer
     responseSync    sync.Mutex
+    responseWait    chan uint64
+
+    /* Request elements */
     requestSync     sync.Mutex
     transport       *http.Transport
     request         *http.Request
@@ -112,6 +124,29 @@ func (f *NetChannelClient) Len() int {
     defer f.responseSync.Unlock()
 
     return f.responseData.Len()
+}
+
+var (
+    WAIT_TIMEOUT_REACHED = errors.New("timeout reached")
+    WAIT_DATA_RECEIVED = errors.New("data received")
+)
+func (f *NetChannelClient) Wait(timeout time.Duration) (responseLen uint64, err error) {
+    responseLen = 0
+    err = WAIT_TIMEOUT_REACHED
+
+    /* Flush the existing channel */
+    for len(f.responseWait) > 0 {
+        <- f.responseWait
+    }
+
+    select {
+    case responseLen = <- f.responseWait:
+        err = WAIT_DATA_RECEIVED
+        return
+    case <- time.After(timeout):
+        responseLen = 0
+        return
+    }
 }
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
@@ -164,6 +199,7 @@ func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
         transport: nil,
         request: nil,
         cancelled: false,
+        responseWait: make(chan uint64),
     }
 
     if (io_channel.flags & FLAG_DEBUG) > 1 {
@@ -416,6 +452,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         defer f.responseSync.Unlock()
 
         f.responseData.Write(response_data)
+        f.responseWait <- uint64(f.responseData.Len())
     }
 
     return len(body), len(p), nil
