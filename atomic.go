@@ -336,6 +336,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
      * Test the circuit
      */
     if err := f.testCircuit(); err != nil {
+        f.Close()
         return err
     }
 
