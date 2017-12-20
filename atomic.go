@@ -100,8 +100,6 @@ type NetChannelClient struct {
     /* Data coming in from the server */
     responseData        *bytes.Buffer
     responseSync        sync.Mutex
-    responseWait        chan uint64
-    responseWaitSync    sync.Mutex
 
     /* Request elements */
     requestSync         sync.Mutex
@@ -131,6 +129,9 @@ func (f *NetChannelClient) Len() int {
     return f.responseData.Len()
 }
 
+/*
+ * NOTE: this function is not implemented
+ */
 var (
     WAIT_TIMEOUT_REACHED = errors.New("timeout reached")
     WAIT_DATA_RECEIVED = errors.New("data received")
@@ -143,21 +144,7 @@ func (f *NetChannelClient) Wait(timeout time.Duration) (responseLen uint64, err 
     responseLen = 0
     err = WAIT_TIMEOUT_REACHED
 
-    /* Flush the existing channel */
-    f.responseWaitSync.Lock()
-    defer f.responseWaitSync.Unlock()
-    for len(f.responseWait) > 0 {
-        <- f.responseWait
-    }
-
-    select {
-    case responseLen = <- f.responseWait:
-        err = WAIT_DATA_RECEIVED
-        return
-    case <- time.After(timeout):
-        responseLen = 0
-        return
-    }
+    return
 }
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
@@ -218,7 +205,6 @@ func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
         transport: nil,
         request: nil,
         cancelled: false,
-        responseWait: make(chan uint64),
     }
 
     if (io_channel.flags & FLAG_DEBUG) > 1 {
@@ -471,10 +457,6 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         defer f.responseSync.Unlock()
 
         f.responseData.Write(response_data)
-
-        f.responseWaitSync.Lock()
-        f.responseWait <- uint64(f.responseData.Len())
-        f.responseWaitSync.Unlock()
     }
 
     return len(body), len(p), nil
