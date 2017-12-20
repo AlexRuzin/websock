@@ -91,6 +91,8 @@ func (f *NetInstance) Wait(timeout time.Duration) (responseLen uint64, err error
 
     responseLen = 0
     err = WAIT_TIMEOUT_REACHED
+
+    return
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
