@@ -302,6 +302,8 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
                 return util.RetErrStr("client not connected")
             }
 
+            channelService.sendDebug("incoming client CHECK_STREAM_DATA")
+
             /* ADDME -- this code should be using channels */
             var timeout = CONTROLLER_RESPONSE_TIMEOUT * 100
             for ; timeout != 0; timeout -= 1 {
@@ -315,6 +317,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             if timeout == 0 {
                 /* Time out -- no data to be sent */
                 if f.clientTX.Len() == 0 {
+                    channelService.sendDebug("no data to send for CHECK_STREAM_DATA request")
                     writer.WriteHeader(http.StatusOK)
                     return nil
                 }
@@ -322,6 +325,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
             defer f.clientTX.Reset()
             defer f.iOSync.Unlock()
+            channelService.sendDebug("sending data to client")
             encrypted, _ := encryptData(f.clientTX.Bytes(), f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
@@ -550,13 +554,17 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
         /* FIXME -- find a way of closing this thread once CloseService() is invoked */
         http.HandleFunc(server.pathGate, handleClientRequest)
 
-        if (svc.Flags & FLAG_DEBUG) > 1 {
-            util.DebugOut("[+] Handling request for path :" + svc.pathGate)
-        }
+        svc.sendDebug("Handling request for path :" + svc.pathGate)
         if err := http.ListenAndServe(":" + util.IntToString(int(server.port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd.")
         }
     } (server)
 
     return server, nil
+}
+
+func (f *NetChannelService) sendDebug(s string) {
+    if (f.Flags & FLAG_DEBUG) > 0 {
+        util.DebugOut(s)
+    }
 }
