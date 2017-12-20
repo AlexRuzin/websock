@@ -42,7 +42,7 @@ import (
 )
 
 /************************************************************
- * websock Server objects and methods                       *
+ * websock Server objects and methods  f                    *
  ************************************************************/
 var clientIO chan *NetInstance = nil
 var channelService *NetChannelService = nil
@@ -152,7 +152,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                 return
             }
 
-            if tmp_key == string(decoded_key) {
+            if strings.Compare(tmp_key, string(decoded_key)) == 0 {
                 marshalled_client_pub_key = &reader.Form[key][0]
                 break
             }
