@@ -74,9 +74,6 @@ type NetInstance struct {
     clientRX                *bytes.Buffer /* Data that is waiting to be read */
     iOSync                  sync.Mutex
 
-    clientRXWait            chan uint64
-    clientRXSync            sync.Mutex
-
     connected               bool
 }
 
@@ -94,21 +91,6 @@ func (f *NetInstance) Wait(timeout time.Duration) (responseLen uint64, err error
 
     responseLen = 0
     err = WAIT_TIMEOUT_REACHED
-
-    f.clientRXSync.Lock()
-    defer f.clientRXSync.Unlock()
-    for len(f.clientRXWait) > 0 {
-        <- f.clientRXWait
-    }
-
-    select {
-    case responseLen = <- f.clientRXWait:
-        err = WAIT_DATA_RECEIVED
-        return
-    case <- time.After(timeout):
-        responseLen = 0
-        return
-    }
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
@@ -347,11 +329,6 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
     f.clientRX.Write(raw_data)
-
-    f.clientRXSync.Lock()
-    defer f.clientRXSync.Unlock()
-
-    f.clientRXWait <- uint64(f.clientRX.Len())
 
     return nil
 }
