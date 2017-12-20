@@ -302,7 +302,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
                 return util.RetErrStr("client not connected")
             }
 
-            channelService.sendDebug("incoming client CHECK_STREAM_DATA")
+            //channelService.sendDebug("incoming client CHECK_STREAM_DATA")
 
             /* ADDME -- this code should be using channels */
             var timeout = CONTROLLER_RESPONSE_TIMEOUT * 100
@@ -317,7 +317,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             if timeout == 0 {
                 /* Time out -- no data to be sent */
                 if f.clientTX.Len() == 0 {
-                    channelService.sendDebug("no data to send for CHECK_STREAM_DATA request")
+                    //channelService.sendDebug("no data to send for CHECK_STREAM_DATA request")
                     writer.WriteHeader(http.StatusOK)
                     return nil
                 }
@@ -325,7 +325,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
             defer f.clientTX.Reset()
             defer f.iOSync.Unlock()
-            channelService.sendDebug("sending data to client")
+            //channelService.sendDebug("sending data to client")
             encrypted, _ := encryptData(f.clientTX.Bytes(), f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
 

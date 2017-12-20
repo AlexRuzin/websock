@@ -156,7 +156,7 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
         return 0, io.EOF
     }
 
-    read, err = f.readStream(p)
+    read, err = f.readStream(p, 0)
     return
 }
 
@@ -388,7 +388,7 @@ func (f *NetChannelClient) testCircuit() error {
     }
 
     var response_data = make([]byte, f.responseData.Len())
-    read, err := f.readStream(response_data)
+    read, err := f.readStream(response_data, FLAG_TEST_CONNECTION)
     if err != io.EOF || read != len(TEST_CONNECTION_DATA) {
         return util.RetErrStr("testCircuit() invalid response from server side")
     }
@@ -462,8 +462,8 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
     return len(body), len(p), nil
 }
 
-func (f *NetChannelClient) readStream(p []byte) (read int, err error) {
-    if f.connected == false {
+func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err error) {
+    if !((flags & FLAG_TEST_CONNECTION) > 0) &&f.connected == false {
         return 0, util.RetErrStr("Client not connected")
     }
 
