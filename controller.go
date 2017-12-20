@@ -332,6 +332,14 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
     defer f.iOSync.Unlock()
     f.clientRX.Write(raw_data)
 
+    /* If there is any data to return, then send it over */
+    if f.clientTX.Len() > 0 {
+        defer f.clientTX.Reset()
+        encrypted, _ := encryptData(f.clientTX.Bytes(), f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+        return sendResponse(writer, encrypted)
+    }
+    writer.WriteHeader(http.StatusOK)
+
     return nil
 }
 
