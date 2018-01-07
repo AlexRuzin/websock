@@ -135,6 +135,7 @@ func (f *NetChannelClient) Len() int {
 var (
     WAIT_TIMEOUT_REACHED = errors.New("timeout reached")
     WAIT_DATA_RECEIVED = errors.New("data received")
+    WAIT_CLOSED = errors.New("socket closed")
 )
 func (f *NetChannelClient) Wait(timeout time.Duration) (responseLen uint64, err error) {
     if f.connected == false {
