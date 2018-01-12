@@ -75,6 +75,9 @@ type NetInstance struct {
     iOSync                  sync.Mutex
 
     connected               bool
+
+    /* URI Path */
+    requestURI              string
 }
 
 func (f *NetInstance) Len() int {
@@ -276,13 +279,14 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     }
 
     var instance = &NetInstance{
-        service: channelService,
-        secret: secret,
-        clientId: client_id[:],
-        ClientIdString: hex.EncodeToString(client_id[:]),
-        clientRX: &bytes.Buffer{},
-        clientTX: &bytes.Buffer{},
-        connected: false,
+        service:            channelService,
+        secret:             secret,
+        clientId:           client_id[:],
+        ClientIdString:     hex.EncodeToString(client_id[:]),
+        clientRX:           &bytes.Buffer{},
+        clientTX:           &bytes.Buffer{},
+        connected:          false,
+        requestURI:         reader.RequestURI,
     }
 
     clientIO <- instance
