@@ -84,13 +84,28 @@ func (f *NetInstance) Len() int {
     return f.clientRX.Len()
 }
 
-func (f *NetInstance) Wait(timeout time.Duration) (responseLen uint64, err error) {
+func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen uint64, err error) {
     if f.connected == false {
         return 0, util.RetErrStr("client not connected")
     }
 
     responseLen = 0
     err = WAIT_TIMEOUT_REACHED
+
+    for i := timeoutMilliseconds / 100; i != 0; i -= 1 {
+        if f.connected == false {
+            err = WAIT_CLOSED
+            break
+        }
+
+        if f.Len() > 0 {
+            responseLen = uint64(f.Len())
+            err = WAIT_DATA_RECEIVED
+            break
+        }
+
+        util.Sleep(100 * time.Millisecond)
+    }
 
     return
 }
