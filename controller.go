@@ -77,7 +77,7 @@ type NetInstance struct {
     connected               bool
 
     /* URI Path */
-    requestURI              string
+    RequestURI              string
 }
 
 func (f *NetInstance) Len() int {
