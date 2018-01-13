@@ -286,7 +286,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         clientRX:           &bytes.Buffer{},
         clientTX:           &bytes.Buffer{},
         connected:          false,
-        requestURI:         reader.RequestURI,
+        RequestURI:         reader.RequestURI,
     }
 
     clientIO <- instance
