@@ -45,7 +45,7 @@ import (
 )
 
 /************************************************************
- * websock Client objects and methods                         *
+ * websock Client objects and methods                       *
  ************************************************************/
 type FlagVal int
 const (
