@@ -26,19 +26,20 @@ import (
     "fmt"
     "sync"
     "bytes"
+    "strings"
+    "io"
+    "time"
     "net/http"
-    "github.com/AlexRuzin/util"
-    "github.com/wsddn/go-ecdh"
     "crypto/elliptic"
     "crypto/rand"
     "crypto/md5"
     "hash/crc64"
     "encoding/hex"
-    "github.com/AlexRuzin/cryptog"
     "encoding/gob"
-    "strings"
-    "io"
-    "time"
+
+    "github.com/AlexRuzin/cryptog"
+    "github.com/AlexRuzin/util"
+    "github.com/wsddn/go-ecdh"
 )
 
 /************************************************************
