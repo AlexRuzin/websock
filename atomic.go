@@ -27,21 +27,22 @@ import (
     "strings"
     "bytes"
     "errors"
+    "sync"
+    "strconv"
+    "time"
     "net/url"
     "net/http"
-    "github.com/AlexRuzin/util"
-    "github.com/wsddn/go-ecdh"
-    "github.com/AlexRuzin/cryptog"
     "crypto/elliptic"
     "hash/crc64"
     "crypto/md5"
     "crypto/rand"
     "io/ioutil"
     "encoding/hex"
-    "time"
     "encoding/gob"
-    "sync"
-    "strconv"
+
+    "github.com/AlexRuzin/util"
+    "github.com/wsddn/go-ecdh"
+    "github.com/AlexRuzin/cryptog"
 )
 
 /************************************************************
