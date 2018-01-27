@@ -243,8 +243,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
     var pubKeyMarshalled = curve.Marshal(clientPublicKey)
 
     /*
-	 * Generate the b64([xor][marshalled][md5sum]) buffer
-	 */
+     * Generate the b64([xor][marshalled][md5sum]) buffer
+     */
     post_pool, err := f.genTxPool(pubKeyMarshalled)
     if err != nil || len(post_pool) < 1 {
         return err
