@@ -26,7 +26,6 @@ import (
     "io"
     "strings"
     "bytes"
-    "errors"
     "sync"
     "strconv"
     "time"
@@ -134,9 +133,9 @@ func (f *NetChannelClient) Len() int {
  * NOTE: this function is not implemented
  */
 var (
-    WAIT_TIMEOUT_REACHED = errors.New("timeout reached")
-    WAIT_DATA_RECEIVED = errors.New("data received")
-    WAIT_CLOSED = errors.New("socket closed")
+    WAIT_TIMEOUT_REACHED = util.RetErrStr("timeout reached")
+    WAIT_DATA_RECEIVED = util.RetErrStr("data received")
+    WAIT_CLOSED = util.RetErrStr("socket closed")
 )
 func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen uint64, err error) {
     if f.connected == false {
