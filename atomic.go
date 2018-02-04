@@ -148,6 +148,7 @@ func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen 
     for i := timeoutMilliseconds / 100; i != 0; i -= 1 {
         if f.connected == false {
             err = WAIT_CLOSED
+            responseLen = -1
             break
         }
 

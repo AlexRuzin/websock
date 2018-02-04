@@ -98,6 +98,7 @@ func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, 
 
     for i := timeoutMilliseconds / 100; i != 0; i -= 1 {
         if f.connected == false {
+            responseLen = -1
             err = WAIT_CLOSED
             break
         }
