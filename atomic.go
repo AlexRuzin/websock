@@ -137,7 +137,7 @@ var (
     WAIT_DATA_RECEIVED = util.RetErrStr("data received")
     WAIT_CLOSED = util.RetErrStr("socket closed")
 )
-func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen uint64, err error) {
+func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
     if f.connected == false {
         return 0, util.RetErrStr("client not connected")
     }
@@ -152,7 +152,7 @@ func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen 
         }
 
         if f.Len() > 0 {
-            responseLen = uint64(f.Len())
+            responseLen = f.Len()
             err = WAIT_DATA_RECEIVED
             break
         }
