@@ -88,7 +88,7 @@ func (f *NetInstance) Len() int {
     return f.clientRX.Len()
 }
 
-func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen uint64, err error) {
+func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
     if f.connected == false {
         return 0, util.RetErrStr("client not connected")
     }
@@ -103,7 +103,7 @@ func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen uint6
         }
 
         if f.Len() > 0 {
-            responseLen = uint64(f.Len())
+            responseLen = f.Len()
             err = WAIT_DATA_RECEIVED
             break
         }
