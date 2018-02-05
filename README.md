@@ -20,11 +20,11 @@ Once the secret key has been generated using the ECDH key exchange, all data wil
 
 ## Server API [`NetChannelService`]
 
-The API consists of the initialization functions along with the methods used to read/write to the streams.
+The API consists of the initialization functions along with the methods used to read/write to the streams. NOTE: The ```FLAG_COMPRESS``` logic has not yet been implemented. 
 
 ### Reference of the Server Side Objects
 
-#### [Representation of the Server Object]
+#### Representation of the Server Object
 
 This object represents the `websock` server. This object is returned once the service has been initialized using `CreateServer()`. Please note that the value of `NetChannelService.IncomingHandler` may be modified at any time, but may cause undesired behaviour.
 
@@ -41,7 +41,7 @@ type NetChannelService struct {
 }
 ```
 
-#### [Representation of the Client on the Server] 
+#### Representation of the Client on the Server
 
 Each client is represented by this structure by the server's `NetChannelService` object.
 
@@ -54,6 +54,11 @@ type NetInstance struct {
 }
 ```
 
+### Generic global flags - Use of elliptic curve diffie-hellman and gzip compression
+
+To make use of the key negotiation, the ```FLAG_ENCRYPT``` flag must be used when initializing the server. Once a client logs into the predetermined URI ECDH will automatically be used to negotiate an RC4-key.
+The ```FLAG_COMPRESS``` flag is used to compress the data buffer prior to encryption -- TODO. The ```FLAG_DEBUG``` switch forces the API debug verbosity.
+
 ### Initialization on the server side
 
 Creating the `websock` server is simple. It requires a TCP listener port, usually port 80. A gate path is required as well. Any kind of gate path may be used (i.e. `/gate.php`, `/newclient.php`, `/`)
@@ -65,30 +70,29 @@ package websock
 
 var ServerInstance *NetChannelService = nil
 var err error = nil
-ServerInstance, err = websock.CreateServer("/gate.php", 
+ServerInstance, err = websock.CreateServer("/gate.php", /* NOTE: The URI is required to access the gate resources */
                                            80, 
-                                           FLAG_BLOCKING,
+                                           FLAG_ENCRYPT | FLAG_DEBUG,
                                            clientHandlerFunction)
 if err != nil {
     panic(err.Error())
 }
 ```
 
-The `clientHandlerFunction` will handle all new requests. The `NetInstance` structure will be passed in this structure, which will allow the calling application to read or write to the instance. 
+### Handling a Client Request using the Inbound Callback Method
 
+The `clientHandlerFunction` will handle all new requests. The `NetInstance` structure will be passed in this structure, which will allow the calling application to read or write to the instance. 
+The below code writes a string to the socket stream of an inbound client.
 ```go
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
-    /* Write data from the server to the client */
-    client.Write([]byte("some random data"))
-
-
-    /* Check if any data is available from the client, if so, then read it */
-    util.SleepSeconds(25)
-    if client.Len() != 0 {
-        data := make([]byte, client.Len())
-        client.Read(data)
-        util.DebugOut(string(data))
-    }
+    /* 
+     * The server has already verified the URI path. If this is a new connection then a 
+     *  the NetInstance object is instantiated. Otherwise, an already existing object will 
+     *  be referenced.
+     */
+     
+     
+    
     return nil
 }
 ``` 
@@ -158,18 +162,51 @@ if err := client.InitializeCircuit(); err != nil {
 
 Reading and writing to the client socket requires the use of the Read/Write functions, which implement the standard Reader/Writer interface. The prototypes of these functions, which are members of `NetChannelClient`, are described below:
 
+#### Determining the length of the Response Buffer
+This method returns the length of the data stored in the socket's receive buffer, if any exists. 0 is returned if no data exists in the buffer. This method does not block the Read/Write interfaces.
 ```go
 /* Returns the length of the read buffer, indicating data was sent from the server to the client */
 func (f *NetChannelClient) Len() int
 ```
+
+
+#### Buffer reads from the Client
+Since the websock API does not block to wait for incoming data, the ```NetChannelClient.Wait()``` method may be used to wait a duration of time before a response code is returned. 
+
+```go
+/* The Wait() prototype */
+func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error)
+```
+
+The below are the possible error statuses returned by Wait().
+
+```go
+/* There are three possible error codes returned by Wait(). responseLen being 0 does not equal an error or success */
+var (
+    /* The input time duration was reached, however the socket is still open */
+    WAIT_TIMEOUT_REACHED = util.RetErrStr("timeout reached")
+    
+    /* Data was stored into the buffer, and Read() may be invoked next */
+    WAIT_DATA_RECEIVED = util.RetErrStr("data received")
+    
+    /* The server has terminated the client connection, and responseLen will be -1 */
+    WAIT_CLOSED = util.RetErrStr("socket closed")
+)
+```
+
+####  Reading Data Sent From Server-side
+Reading from the socket buffer is done by first calling ```Len()```, i.e. checking that there is indeed a size of >1. A buffer can be allocated and ```Read()``` is invoked to deplete the socket buffer. Please note that websock abides by the standard GO Reader/Writer interfaces.
 
 ```go
 /* Read into p until the buffer is depleted. An io.EOF error will be returned once the buffer is depleted */
 func (f *NetChannelClient) Read(p []byte) (read int, err error)
 ```
 
+#### Writing to the Channel
+
+The ```Write()``` method is used to write to the socket stream, which also follows a basic Writer interface. The method returns an io.EOF ```p``` is depleted and the data has been queued for transmission over the socket stream.
+
 ```go
-/* Write p into the buffer. Written returns the len(p), and io.EOF is returned if there was enough space in the buffer */
 func (f *NetChannelClient) Write(p []byte) (written int, err error)
 ```
 
