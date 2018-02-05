@@ -20,6 +20,8 @@
  * SOFTWARE.
  */
 
+/* Commit test */
+
 package websock
 
 import (
