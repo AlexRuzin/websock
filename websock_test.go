@@ -89,7 +89,7 @@ func TestMainChannel(t *testing.T) {
         var err error
         service, err = CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
                                      CONTROLLER_PORT, /* 80 */
-                                     FLAG_DEBUG,
+                                     FLAG_DEBUG | FLAG_ENCRYPT | FLAG_COMPRESS,
                                      incomingClientHandler)
         if err != nil || service == nil {
             D(err.Error())
@@ -101,7 +101,7 @@ func TestMainChannel(t *testing.T) {
         D("Building the client transporter")
 
         gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-        client, err := BuildChannel(gate_uri, FLAG_DEBUG)
+        client, err := BuildChannel(gate_uri, FLAG_DEBUG | FLAG_ENCRYPT | FLAG_COMPRESS)
         if err != nil || client == nil {
             D(err.Error())
             T("Cannot build net channel")
