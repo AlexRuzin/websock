@@ -42,6 +42,14 @@ import (
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
     "github.com/AlexRuzin/cryptog"
+    "errors"
+)
+
+/*
+ * Configuration constants -- do not edit these
+ */
+const (
+    COMPRESSION_MIN_LIMIT           int = 128
 )
 
 /************************************************************
@@ -49,8 +57,9 @@ import (
  ************************************************************/
 type FlagVal int
 const (
-    FLAG_DO_NOT_USE   FlagVal = 1 << iota /* Flip up to 32 bits  -- DO NOT USE THIS FLAG*/
+    FLAG_DO_NOT_USE                 FlagVal = 1 << iota /* Flip up to 32 bits -- placeholder*/
     FLAG_DEBUG
+    FLAG_ENCRYPT
     FLAG_DIRECTION_TO_SERVER
     FLAG_DIRECTION_TO_CLIENT
     FLAG_TERMINATE_CONNECTION
@@ -198,6 +207,10 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
 func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
     if (flags & FLAG_DO_NOT_USE) == 1 {
         return nil, util.RetErrStr("Invalid flag: FLAG_DO_NOT_USE")
+    }
+
+    if (flags & FLAG_ENCRYPT) == 0 {
+        return nil, errors.New("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
     }
 
     main_url, err := url.Parse(gate_uri)
