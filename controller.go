@@ -134,7 +134,7 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
     f.clientRX.Reset()
     copy(p, data)
 
-    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
+    if (channelService.Flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
 
     }
 
@@ -151,7 +151,7 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
 
     f.clientTX.Write(p)
 
-    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
+    if (channelService.Flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
 
     }
 
