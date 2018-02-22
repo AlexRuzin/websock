@@ -42,7 +42,6 @@ import (
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
     "github.com/AlexRuzin/cryptog"
-    "errors"
 )
 
 /*
@@ -60,11 +59,11 @@ const (
     FLAG_DO_NOT_USE                 FlagVal = 1 << iota /* Flip up to 32 bits -- placeholder*/
     FLAG_DEBUG
     FLAG_ENCRYPT
+    FLAG_COMPRESS
     FLAG_DIRECTION_TO_SERVER
     FLAG_DIRECTION_TO_CLIENT
     FLAG_TERMINATE_CONNECTION
     FLAG_TEST_CONNECTION
-    FLAG_STREAM_COMPRESSION
     FLAG_CHECK_STREAM_DATA
 )
 
@@ -210,7 +209,7 @@ func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
     }
 
     if (flags & FLAG_ENCRYPT) == 0 {
-        return nil, errors.New("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
+        return nil, util.RetErrStr("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
     }
 
     main_url, err := url.Parse(gate_uri)
