@@ -75,10 +75,12 @@ const HTTP_VERB = "POST"
 /*
  * Constants beyond this point -- do not change these values
  */
-const CHECK_STREAM_DATA = "check stream data"
-const TEST_CONNECTION_DATA = "test connection data"
-const TERMINATE_CONNECTION_DATA = "terminate connection"
+const (
+    CHECK_STREAM_DATA = "check stream data"
+    TEST_CONNECTION_DATA = "test connection data"
+    TERMINATE_CONNECTION_DATA = "terminate connection"
+)
 
 const (
-    COMPRESSION_MIN_LIMIT           int = 128
+    COMPRESSION_MIN_LIMIT int = 128
 )
