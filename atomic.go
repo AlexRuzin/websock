@@ -165,7 +165,7 @@ func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen 
     return
 }
 
-func (f *NetChannelClient) Read(p []byte) (read int, err error) {
+func (f *NetChannelClient) readInternal(p []byte) (int, error) {
     if f.connected == false {
         return 0, util.RetErrStr("client not connected")
     }
@@ -174,11 +174,15 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
         return 0, io.EOF
     }
 
-    read, err = f.readStream(p, 0)
-    return
+    read, err := f.readStream(p, 0)
+    if err != io.EOF {
+        return 0, err
+    }
+
+    return read, io.EOF
 }
 
-func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
     if f.connected == false {
         return 0, util.RetErrStr("client not connected")
     }
@@ -194,6 +198,24 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     }
 
     return wrote, io.EOF
+}
+
+func (f *NetChannelClient) Read(p []byte) (read int, err error) {
+    read, err = f.readInternal(p)
+    if err != io.EOF {
+        return 0, err
+    }
+
+    return
+}
+
+func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+    written, err = f.writeInternal(p)
+    if err != io.EOF {
+        return 0, err
+    }
+
+    return
 }
 
 func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
