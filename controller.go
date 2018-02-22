@@ -134,6 +134,10 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
     f.clientRX.Reset()
     copy(p, data)
 
+    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
+
+    }
+
     return len(data), io.EOF
 }
 
@@ -146,6 +150,10 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
     defer f.iOSync.Unlock()
 
     f.clientTX.Write(p)
+
+    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
+
+    }
 
     return len(p), io.EOF
 }
