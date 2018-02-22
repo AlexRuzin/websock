@@ -37,7 +37,7 @@ const RUN_SERVER_TEST                bool = true
 //const CONTROLLER_DOMAIN              string = "192.168.0.50:8080"
 const CONTROLLER_DOMAIN              string = "127.0.0.1"
 const CONTROLLER_PATH_GATE           string = "/gate.php"
-const CONTROLLER_PORT                int16 = 80
+const CONTROLLER_PORT                int16 = 2222
 
 const STANDALONE                     bool = false
 
