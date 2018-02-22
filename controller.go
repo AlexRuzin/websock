@@ -117,7 +117,7 @@ func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, 
     return
 }
 
-func (f *NetInstance) Read(p []byte) (read int, err error) {
+func (f *NetInstance) readInternal(p []byte) (int, error) {
     if f.connected == false {
         return 0, util.RetErrStr("client not connected")
     }
@@ -137,7 +137,7 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
     return len(data), io.EOF
 }
 
-func (f *NetInstance) Write(p []byte) (wrote int, err error) {
+func (f *NetInstance) writeInternal(p []byte) (int, error) {
     if f.connected == false {
         return 0, util.RetErrStr("client not connected")
     }
@@ -148,6 +148,24 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
     f.clientTX.Write(p)
 
     return len(p), io.EOF
+}
+
+func (f *NetInstance) Read(p []byte) (read int, err error) {
+    read, err = f.readInternal(p)
+    if err != nil {
+        return 0, err
+    }
+
+    return
+}
+
+func (f *NetInstance) Write(p []byte) (wrote int, err error) {
+    wrote, err = f.writeInternal(p)
+    if err != nil {
+        return 0, err
+    }
+
+    return
 }
 
 /* Create circuit -OR- process gate requests */
