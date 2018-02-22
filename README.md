@@ -56,8 +56,8 @@ type NetInstance struct {
 
 ### Generic global flags - Use of elliptic curve diffie-hellman and gzip compression
 
-To make use of the key negotiation, the ```FLAG_ENCRYPT``` flag must be used when initializing the server. If this flag is not set, the call to create the server will fail. Once a client logs into the predetermined URI ECDH will automatically be used to negotiate an RC4-key.
-The ```FLAG_COMPRESS``` flag is used to compress the data buffer prior to encryption -- TODO. The ```FLAG_DEBUG``` switch forces the API debug verbosity.
+To make use of the key negotiation, the ```FLAG_ENCRYPT``` flag must be used when initializing the server. If this flag is not set, the call to create the server will fail, since the basis of this library is a cryptographic stream. However, a plaintext solution will eventually be added in. Once a client logs into the predetermined URI ECDH will automatically be used to negotiate an RC4-key.
+The ```FLAG_COMPRESS``` flag is used to compress the data buffer prior to encryption. The ```FLAG_DEBUG``` switch forces the API debug verbosity.
 
 ### Initialization on the server side
 
