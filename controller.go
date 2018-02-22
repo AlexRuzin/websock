@@ -42,6 +42,7 @@ import (
     "github.com/AlexRuzin/cryptog"
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
+    "errors"
 )
 
 /************************************************************
@@ -525,6 +526,12 @@ func (f *NetInstance) Close() {
 
 func CreateServer(path_gate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
+
+    /* The FLAG_ENCRYPT switch must always be set to true */
+    if (flags & FLAG_ENCRYPT) == 0 {
+        return nil, errors.New("FLAG_ENCRYPT must be set")
+    }
+
     var server = &NetChannelService{
         IncomingHandler: handler,
         port: port,
