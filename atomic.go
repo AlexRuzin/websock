@@ -44,13 +44,6 @@ import (
     "github.com/AlexRuzin/cryptog"
 )
 
-/*
- * Configuration constants -- do not edit these
- */
-const (
-    COMPRESSION_MIN_LIMIT           int = 128
-)
-
 /************************************************************
  * websock Client objects and methods                       *
  ************************************************************/

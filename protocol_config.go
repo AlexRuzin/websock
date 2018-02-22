@@ -78,3 +78,7 @@ const HTTP_VERB = "POST"
 const CHECK_STREAM_DATA = "check stream data"
 const TEST_CONNECTION_DATA = "test connection data"
 const TERMINATE_CONNECTION_DATA = "terminate connection"
+
+const (
+    COMPRESSION_MIN_LIMIT           int = 128
+)
