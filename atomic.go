@@ -174,10 +174,6 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
         return 0, io.EOF
     }
 
-    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
-
-    }
-
     read, err = f.readStream(p, 0)
     return
 }
@@ -192,14 +188,7 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
         f.transport.CancelRequest(f.request)
     }
 
-    var rawData = make([]byte, len(p))
-    copy(rawData, p)
-
-    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > COMPRESSION_MIN_LIMIT {
-
-    }
-
-    _, wrote, err := f.writeStream(rawData, 0)
+    _, wrote, err := f.writeStream(p, 0)
     if err != nil {
         return 0, err
     }
