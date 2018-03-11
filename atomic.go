@@ -486,8 +486,23 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         return 0, 0, util.RetErrStr("No input data")
     }
 
+    /* Check for high-entropy compression inflation and generate a compression stream */
+    var (
+        compressionFlag FlagVal = 0
+        txData          []byte = p
+        deflateStatus   error = nil
+    )
+    if len(p) > util.GetCompressedSize(p) {
+        compressionFlag |= FLAG_COMPRESS
+
+        txData, deflateStatus = util.CompressStream(txData)
+        if err != nil {
+            panic(deflateStatus)
+        }
+    }
+
     f.flags |= FLAG_DIRECTION_TO_SERVER
-    encrypted, err := encryptData(p, f.secret, FLAG_DIRECTION_TO_SERVER, 0, f.clientIdString)
+    encrypted, err := encryptData(txData, f.secret, FLAG_DIRECTION_TO_SERVER, compressionFlag, f.clientIdString)
     if err != nil {
         return 0, 0, err
     }
