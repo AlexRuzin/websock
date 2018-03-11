@@ -233,12 +233,24 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                   * Write data to NetInstance.ClientData
                   */
                  value := key[k]
-                 var client_id string
-                 var data []byte = nil
-                 if client_id, data, err = decryptData(value[0], client.secret);
-                 err != nil || strings.Compare(client_id, client.ClientIdString) != 0 {
+                 var (
+                     clientId       string
+                     data           []byte = nil
+                     txUnit         *TransferUnit = nil
+                 )
+                 if clientId, data, txUnit, err = decryptData(value[0], client.secret);
+                 err != nil || strings.Compare(clientId, client.ClientIdString) != 0 {
                      channelService.CloseClient(client)
                      return
+                 }
+
+                 if (channelService.Flags & FLAG_COMPRESS) > 0 && (txUnit.Flags & FLAG_COMPRESS) > 0 {
+                     var streamStatus error = nil
+                     data, streamStatus = util.DecompressStream(data)
+                     if streamStatus != nil {
+                         channelService.CloseClient(client)
+                         return
+                     }
                  }
 
                  if err := client.parseClientData(data, writer); err != nil {
@@ -383,11 +395,12 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     defer f.iOSync.Unlock()
 
     var requestData []byte = rawData
-    var otherFlags FlagVal = 0
 
+    /* Decompression, if required, has already taken place in handleClientRequest() by parsing the TransmissionUnit flags */
     f.clientRX.Write(requestData)
 
     /* If there is any data to return, then send it over */
+    var otherFlags FlagVal = 0
     if f.clientTX.Len() > 0 {
         defer f.clientTX.Reset()
 
@@ -411,10 +424,11 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     return nil
 }
 
-func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data []byte, status error) {
+func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data []byte, txUnit *TransferUnit, status error) {
     status = util.RetErrStr("decryptData: Unknown error")
     client_id = ""
     raw_data = nil
+    txUnit = nil
 
     b64_decoded, err := util.B64D(b64_encoded)
     if err != nil {
@@ -428,7 +442,8 @@ func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data 
         return
     }
 
-    tx_unit, err := func(raw []byte) (*TransferUnit, error) {
+    var decodeStatus error = nil
+    txUnit, decodeStatus = func(raw []byte) (*TransferUnit, error) {
         output := new(TransferUnit)
 
         p := &bytes.Buffer{}
@@ -440,22 +455,22 @@ func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data 
 
         return output, nil
     } (decrypted)
-    if err != nil || tx_unit == nil {
-        status = err
+    if decodeStatus != nil || txUnit == nil {
+        status = decodeStatus
         return
     }
 
     new_sum := func (p []byte) string {
         data_sum := md5.Sum(p)
         return hex.EncodeToString(data_sum[:])
-    } (tx_unit.Data)
-    if strings.Compare(new_sum, tx_unit.DecryptedSum) != 0 {
+    } (txUnit.Data)
+    if strings.Compare(new_sum, txUnit.DecryptedSum) != 0 {
         status = util.RetErrStr("decryptData: Data corruption")
         return
     }
 
-    raw_data = tx_unit.Data
-    client_id = tx_unit.ClientID
+    raw_data = txUnit.Data
+    client_id = txUnit.ClientID
     status = nil
     return
 }
