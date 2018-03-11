@@ -504,18 +504,35 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
 
     if len(body) != 0 {
         /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        client_id, response_data, err := decryptData(string(body), f.secret)
+        clientId, responseData, err := decryptData(string(body), f.secret)
         if err != nil {
             return len(body), len(p), err
         }
-        if strings.Compare(client_id, f.clientIdString) != 0 {
+        if strings.Compare(clientId, f.clientIdString) != 0 {
             return len(body), len(p), util.RetErrStr("Invalid server response")
         }
 
         f.responseSync.Lock()
         defer f.responseSync.Unlock()
 
-        f.responseData.Write(response_data)
+        var rawData = responseData
+
+        if (f.flags & FLAG_COMPRESS) > 0 {
+            var (
+                streamStatus        error = nil
+                decompressed        []byte
+            )
+
+            decompressed, streamStatus = util.DecompressStream(responseData)
+            if streamStatus != nil {
+                return 0, 0, err
+            }
+
+           rawData = decompressed
+        }
+
+        /* Write either the compressed or decompressed stream */
+        f.responseData.Write(rawData)
     }
 
     return len(body), len(p), nil
