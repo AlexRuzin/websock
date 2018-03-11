@@ -314,12 +314,12 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     clientIO <- instance
 }
 
-func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWriter) error {
+func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter) error {
     /*
      * Check for internal commands first
      */
-    if util.IsAsciiPrintable(string(raw_data)) {
-        var command = string(raw_data)
+    if util.IsAsciiPrintable(string(rawData)) {
+        var command = string(rawData)
 
         switch command {
         case CHECK_STREAM_DATA:
@@ -349,7 +349,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
             var outputStream []byte = f.clientTX.Bytes()
 
-            if (channelService.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > COMPRESSION_MIN_LIMIT {
+            if (channelService.Flags & FLAG_COMPRESS) > 0 {
                 var streamStatus error = nil
                 outputStream, streamStatus = util.CompressStream(outputStream)
                 if streamStatus != nil {
@@ -361,7 +361,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
             return sendResponse(writer, encrypted)
 
         case TEST_CONNECTION_DATA:
-            encrypted, _ := encryptData(raw_data, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            encrypted, _ := encryptData(rawData, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
         case TERMINATE_CONNECTION_DATA:
@@ -377,12 +377,26 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
-    f.clientRX.Write(raw_data)
+
+    var requestData []byte = rawData
+
+    f.clientRX.Write(requestData)
 
     /* If there is any data to return, then send it over */
     if f.clientTX.Len() > 0 {
         defer f.clientTX.Reset()
-        encrypted, _ := encryptData(f.clientTX.Bytes(), f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+
+        var outputStream []byte = f.clientTX.Bytes()
+
+        if (channelService.Flags & FLAG_COMPRESS) > 0 {
+            var streamStatus error = nil
+            outputStream, streamStatus = util.CompressStream(outputStream)
+            if streamStatus != nil {
+                panic(streamStatus)
+            }
+        }
+
+        encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
         return sendResponse(writer, encrypted)
     }
     writer.WriteHeader(http.StatusOK)

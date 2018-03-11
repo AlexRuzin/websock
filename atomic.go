@@ -192,7 +192,7 @@ func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
         f.transport.CancelRequest(f.request)
     }
 
-    if (f.flags & FLAG_COMPRESS) > 0 && len(p) >= COMPRESSION_MIN_LIMIT {
+    if (f.flags & FLAG_COMPRESS) > 0 {
         rawData, err := util.CompressStream(p)
         if err != nil {
             return 0, err

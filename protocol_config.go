@@ -81,6 +81,4 @@ const (
     TERMINATE_CONNECTION_DATA = "terminate connection"
 )
 
-const (
-    COMPRESSION_MIN_LIMIT int = 512
-)
+/* EOF */
