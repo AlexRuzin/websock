@@ -72,7 +72,7 @@ var ServerInstance *NetChannelService = nil
 var err error = nil
 ServerInstance, err = websock.CreateServer("/gate.php", /* NOTE: The URI is required to access the gate resources */
                                            80, 
-                                           FLAG_ENCRYPT | FLAG_COMPRESS /* Example */ | FLAG_DEBUG,
+                                           FLAG_ENCRYPT /* Mandatory */ | FLAG_COMPRESS /* Optional -- experimental */ | FLAG_DEBUG,
                                            clientHandlerFunction)
 if err != nil {
     panic(err.Error())
