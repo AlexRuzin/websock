@@ -82,5 +82,5 @@ const (
 )
 
 const (
-    COMPRESSION_MIN_LIMIT int = 128
+    COMPRESSION_MIN_LIMIT int = 512
 )
