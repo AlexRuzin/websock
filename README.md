@@ -20,7 +20,7 @@ Once the secret key has been generated using the ECDH key exchange, all data wil
 
 ## Server API [`NetChannelService`]
 
-The API consists of the initialization functions along with the methods used to read/write to the streams. NOTE: The ```FLAG_COMPRESS``` logic has not yet been implemented. 
+The API consists of the initialization functions along with the methods used to read/write to the streams. NOTE: The ```FLAG_COMPRESS``` logic is as of right now implemented, but not fully tested. Please be advised that using ```FLAG_COMPRESS``` may be dangerous in already stable code, although its removal should not affect any other subsystem. 
 
 ### Reference of the Server Side Objects
 
@@ -57,7 +57,7 @@ type NetInstance struct {
 ### Generic global flags - Use of elliptic curve diffie-hellman and gzip compression
 
 To make use of the key negotiation, the ```FLAG_ENCRYPT``` flag must be used when initializing the server. If this flag is not set, the call to create the server will fail, since the basis of this library is a cryptographic stream. However, a plaintext solution will eventually be added in. Once a client logs into the predetermined URI ECDH will automatically be used to negotiate an RC4-key.
-The ```FLAG_COMPRESS``` flag is used to compress the data buffer prior to encryption. The ```FLAG_DEBUG``` switch forces the API debug verbosity.
+The ```FLAG_COMPRESS``` flag is used to compress the data buffer prior to encryption. The ```websock``` API checks for unintended inflation in high-entropy buffers when ```FLAG_COMPRESS``` is used. In these cases, ```FLAG_COMPRESS``` is ignored for *that* data stream only, and is determined on a stream by stream basis. The ```FLAG_DEBUG``` switch forces the API debug verbosity.
 
 ### Initialization on the server side
 
@@ -72,7 +72,7 @@ var ServerInstance *NetChannelService = nil
 var err error = nil
 ServerInstance, err = websock.CreateServer("/gate.php", /* NOTE: The URI is required to access the gate resources */
                                            80, 
-                                           FLAG_ENCRYPT | FLAG_DEBUG,
+                                           FLAG_ENCRYPT | FLAG_COMPRESS /* Example */ | FLAG_DEBUG,
                                            clientHandlerFunction)
 if err != nil {
     panic(err.Error())
@@ -139,10 +139,10 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
 
 ## Client API [`NetChannelClient`]
 
-Having the client connect requires a call to initialize the client library by calling `websock.BuildChannel()`, where the target URI is passed, in the form of `http://domain.com:7676/handler.php`. Several flags may be passed as well, which will be elaborated on further below. Note that the client will *not* connect to the server at this point. The `websock.BuildChannel()` method returns a `NetChannelClient` structure, which will implement the Read/Write functions.
+Having the client connect requires a call to initialize the client library by calling `websock.BuildChannel()`, where the target URI is passed, in the form of `http://domain.com:7676/handler.php`. Several flags may be passed as well, which will be elaborated on further below. Note that the client will *not* connect to the server at this point. The `websock.BuildChannel()` method returns a `NetChannelClient` structure, which will implement the Read/Write functions. Please note that the ```FLAG_ENCRYPT``` flag must be set. Additionally, if data compression is required for large, low-entropy streams, then the ```FLAG_COMPRESS``` switch may be used for the BuildChannel() flags parameter.
 
 ```go
-client, err := BuildChannel(gate_uri, FLAG_DEBUG)
+client, err := BuildChannel(gate_uri, FLAG_ENCRYPT /* Required */ | FLAG_COMMPRESS /* Optional */ | FLAG_DEBUG)
 if err != nil || client == nil {
     D(err.Error())
     T("Cannot build net channel")
