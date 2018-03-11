@@ -349,7 +349,7 @@ func (f *NetInstance) parseClientData(raw_data []byte, writer http.ResponseWrite
 
             var outputStream []byte = f.clientTX.Bytes()
 
-            if (channelService.Flags & FLAG_COMPRESS) > 0 {
+            if (channelService.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > COMPRESSION_MIN_LIMIT {
                 var streamStatus error = nil
                 outputStream, streamStatus = util.CompressStream(outputStream)
                 if streamStatus != nil {
