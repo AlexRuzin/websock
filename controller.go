@@ -357,11 +357,11 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
                 }
             }
 
-            encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, 0, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
         case TEST_CONNECTION_DATA:
-            encrypted, _ := encryptData(rawData, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+            encrypted, _ := encryptData(rawData, f.secret, FLAG_DIRECTION_TO_CLIENT, 0, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
         case TERMINATE_CONNECTION_DATA:
@@ -396,7 +396,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
             }
         }
 
-        encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, f.ClientIdString)
+        encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, 0, f.ClientIdString)
         return sendResponse(writer, encrypted)
     }
     writer.WriteHeader(http.StatusOK)

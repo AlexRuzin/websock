@@ -117,6 +117,7 @@ type TransferUnit struct {
     Data            []byte
     DecryptedSum    string
     Direction       FlagVal
+    Flags           FlagVal
 }
 
 func (f *NetChannelClient) Len() int {
@@ -486,7 +487,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
     }
 
     f.flags |= FLAG_DIRECTION_TO_SERVER
-    encrypted, err := encryptData(p, f.secret, FLAG_DIRECTION_TO_SERVER, f.clientIdString)
+    encrypted, err := encryptData(p, f.secret, FLAG_DIRECTION_TO_SERVER, 0, f.clientIdString)
     if err != nil {
         return 0, 0, err
     }
@@ -557,7 +558,7 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     return read, io.EOF
 }
 
-func encryptData(data []byte, secret []byte, flags FlagVal, client_id string) (encrypted []byte, err error) {
+func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal, client_id string) (encrypted []byte, err error) {
     if len(data) == 0 {
         return nil, util.RetErrStr("Invalid parameters for encryptData")
     }
@@ -565,7 +566,7 @@ func encryptData(data []byte, secret []byte, flags FlagVal, client_id string) (e
 
     /* Transmission object */
     tx := &TransferUnit{
-        ClientID: client_id,
+        ClientID:           client_id,
         TimeStamp: func () string {
             return time.Now().String()
         } (),
@@ -574,8 +575,8 @@ func encryptData(data []byte, secret []byte, flags FlagVal, client_id string) (e
             data_sum := md5.Sum(data)
             return hex.EncodeToString(data_sum[:])
         } (data),
-        Direction: flags,
-
+        Direction:          directionFlags,
+        Flags:              otherFlags,
     }
     copy(tx.Data, data)
 
