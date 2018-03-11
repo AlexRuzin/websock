@@ -520,7 +520,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
 
     if len(body) != 0 {
         /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        clientId, responseData, err := decryptData(string(body), f.secret)
+        clientId, responseData, _, err := decryptData(string(body), f.secret)
         if err != nil {
             return len(body), len(p), err
         }
