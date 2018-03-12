@@ -32,10 +32,15 @@ import (
 )
 
 /* Configuration */
-const CONTROLLER_DOMAIN              string = "127.0.0.1"
-const CONTROLLER_PATH_GATE           string = "/gate.php"
-const CONTROLLER_PORT                int16  = 80
+const CONTROLLER_DOMAIN             string = "127.0.0.1"
+const CONTROLLER_PATH_GATE          string = "/gate.php"
+const CONTROLLER_PORT               int16  = 2222
 
+type serverType uint8
+const (
+    TYPE_SERVER                     serverType = iota
+    TYPE_CLIENT                     /* Type is a client */
+)
 type configInput struct {
     controllerAddress               string
     controllerPort                  int16
@@ -43,7 +48,10 @@ type configInput struct {
     controllerGatePath              string
 
     /* False -- start client, true -- start server */
-    startServer                     bool
+    runningMode                     serverType
+
+    /* Generic verbosity -- generic debug output */
+    verbosity                       bool
 }
 
 func TestMainChannel(t *testing.T) {
@@ -54,11 +62,15 @@ func TestMainChannel(t *testing.T) {
             controllerPort:         CONTROLLER_PORT,
             controllerGatePath:     CONTROLLER_PATH_GATE,
 
-            startServer:            false,
+            runningMode:            TYPE_CLIENT,
+
+            verbosity:              false,
         }
 
-        &out.startServer = flag.Bool("server-mode", false, "Start the test in server mode")
-        if out.startServer == false {
+        tmp := flag.Int("server-mode", int(TYPE_CLIENT),
+            "Start the test in server mode [")
+        out.runningMode = serverType(*tmp)
+        if out.runningMode == TYPE_CLIENT {
             /* Client-mode */
             &out.controllerAddress = flag.String("server-address", out.controllerAddress,
                 "Target server address")
@@ -75,8 +87,35 @@ func TestMainChannel(t *testing.T) {
             panic(flag.ErrHelp)
         }
 
+        &out.verbosity = flag.Bool("v", false, "Generic debug verbosity")
+        D("Generic debug verbosity enabled")
+
         return out, nil
     } ()
+
+    if config.verbosity == true {
+        func(config *configInput) {
+            switch config.runningMode {
+            case TYPE_CLIENT:
+                D("We are running in TYPE_CLIENT mode. Default target server is: " + "http://" +
+                    config.controllerAddress + ":" + util.IntToString(int(config.controllerPort)) +
+                        config.controllerGatePath)
+                break
+            case TYPE_SERVER:
+                D("We are running in TYPE_SERVER mode. Default listening port is: " +
+                    util.IntToString(int(config.controllerPort)))
+                D("Default listen path is set to: " + config.controllerGatePath)
+            }
+        }(config)
+    }
+
+    switch config.runningMode {
+    case TYPE_CLIENT:
+        var gateURI string = "http://" + config.controllerAddress + config.controllerGatePath
+
+    case TYPE_SERVER:
+
+    }
 
 
     if STANDALONE == true {
