@@ -37,11 +37,9 @@ import (
     "crypto/rand"
     "io/ioutil"
     "encoding/hex"
-    "encoding/gob"
 
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
-    "github.com/AlexRuzin/cryptog"
 )
 
 /************************************************************
@@ -421,24 +419,6 @@ func (f *NetChannelClient) Close() {
     f.writeStream(nil, FLAG_TERMINATE_CONNECTION)
 }
 
-func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (out bool) {
-    /* FIXME -- this should be consolidated code */
-    out = false
-    var keyVector = make([]string, len(char_set))
-    for i := len(char_set) - 1; i >= 0; i -= 1 {
-        keyVector[i] = util.B64E([]byte(string(char_set[i])))
-    }
-
-    for i := range keyVector {
-        if bytes.Equal([]byte(key), []byte(keyVector[i])) {
-            out = true
-            break
-        }
-    }
-
-    return
-}
-
 func (f *NetChannelClient) testCircuit() error {
     if _, _, err := f.writeStream(nil, FLAG_TEST_CONNECTION); err != nil {
         return err
@@ -572,83 +552,6 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     f.responseData.Reset() /* FIXME */
 
     return read, io.EOF
-}
-
-func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal, clientId string) (encrypted []byte, err error) {
-    if len(data) == 0 {
-        return nil, util.RetErrStr("Invalid parameters for encryptData")
-    }
-    err = util.RetErrStr("encryptData: Unknown error")
-
-    /* Transmission object */
-    tx := &TransferUnit{
-        ClientID:           clientId,
-        TimeStamp: func () string {
-            return time.Now().String()
-        } (),
-        Data: make([]byte, len(data)),
-        DecryptedSum: func (p []byte) string {
-            dataSum := md5.Sum(data)
-            return hex.EncodeToString(dataSum[:])
-        } (data),
-        Direction:          directionFlags,
-        Flags:              otherFlags,
-    }
-    copy(tx.Data, data)
-
-    txStream, err := func(tx TransferUnit) ([]byte, error) {
-        b := new(bytes.Buffer)
-        e := gob.NewEncoder(b)
-        if err := e.Encode(tx); err != nil {
-            return nil, err
-        }
-        return b.Bytes(), nil
-    } (*tx)
-    if err != nil {
-        return nil, err
-    }
-
-    output, err := cryptog.RC4_Encrypt(txStream, cryptog.RC4_PrepareKey(secret))
-    if err != nil {
-        return nil, err
-    }
-    encrypted = output
-    err = nil
-
-    return
-}
-
-func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
-    /***********************************************************************************************
-     * Transmits the public key ECDH key to server. The transmission buffer contains:              *
-     *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])  *
-     ***********************************************************************************************/
-    var pool = bytes.Buffer{}
-    xorKey := make([]byte, crc64.Size)
-    rand.Read(xorKey)
-    pool.Write(xorKey)
-    marshalEncrypted := make([]byte, len(pubKeyMarshalled))
-    copy(marshalEncrypted, pubKeyMarshalled)
-    counter := 0
-    for k := range marshalEncrypted {
-        if counter == len(xorKey) {
-            counter = 0
-        }
-        marshalEncrypted[k] ^= xorKey[counter]
-        counter += 1
-    }
-    pool.Write(marshalEncrypted)
-    poolSum := md5.Sum(pool.Bytes())
-    pool.Write(poolSum[:])
-
-    b64Buf := util.B64E(pool.Bytes())
-    return []byte(b64Buf), nil
-}
-
-func encodeKeyValue (high int) string {
-    return func (h int) string {
-        return util.B64E([]byte(util.RandomString(util.RandInt(1, high))))
-    } (high)
 }
 
 func sendTransmission(verb string, URI string, m map[string]string, client *NetChannelClient) (response []byte, err error) {

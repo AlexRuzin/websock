@@ -35,11 +35,8 @@ import (
     "crypto/elliptic"
     "crypto/rand"
     "crypto/md5"
-    "hash/crc64"
     "encoding/hex"
-    "encoding/gob"
 
-    "github.com/AlexRuzin/cryptog"
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
 )
@@ -424,131 +421,11 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     return nil
 }
 
-func decryptData(b64Encoded string, secret []byte) (clientId string, rawData []byte, txUnit *TransferUnit, status error) {
-    status      = util.RetErrStr("decryptData: Unknown error")
-    clientId    = ""
-    rawData     = nil
-    txUnit      = nil
-
-    b64Decoded, err := util.B64D(b64Encoded)
-    if err != nil {
-        status = err
-        return
-    }
-
-    decrypted, err := cryptog.RC4_Decrypt(b64Decoded, cryptog.RC4_PrepareKey(secret))
-    if err != nil {
-        status = err
-        return
-    }
-
-    var decodeStatus error = nil
-    txUnit, decodeStatus = func(raw []byte) (*TransferUnit, error) {
-        output := new(TransferUnit)
-
-        p := &bytes.Buffer{}
-        p.Write(raw)
-        d := gob.NewDecoder(p)
-        if err := d.Decode(output); err != nil {
-            return nil, err
-        }
-
-        return output, nil
-    } (decrypted)
-    if decodeStatus != nil || txUnit == nil {
-        status = decodeStatus
-        return
-    }
-
-    newSum := func (p []byte) string {
-        dataSum := md5.Sum(p)
-        return hex.EncodeToString(dataSum[:])
-    } (txUnit.Data)
-    if strings.Compare(newSum, txUnit.DecryptedSum) != 0 {
-        status = util.RetErrStr("decryptData: Data corruption")
-        return
-    }
-
-    rawData     = txUnit.Data
-    clientId    = txUnit.ClientID
-    status      = nil
-    return
-}
-
-func getClientPublicKey(buffer string) (marshalledPublicKey []byte, err error) {
-    /*
-     * Read in an HTTP request in the following format:
-     *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])
-     */
-    b64Decoded, err := util.B64D(buffer)
-    if err != nil {
-        return nil, err
-    }
-    var xorKey = make([]byte, crc64.Size)
-    copy(xorKey, b64Decoded[:crc64.Size])
-    var marshalXor = make([]byte, len(b64Decoded) - crc64.Size - md5.Size)
-    var sum = make([]byte, md5.Size)
-    copy(sum, b64Decoded[len(xorKey) + len(marshalXor):])
-
-    sumBuffer := make([]byte, len(b64Decoded) - md5.Size)
-    copy(sumBuffer, b64Decoded[:len(b64Decoded) - md5.Size])
-    newSum := md5.Sum(sumBuffer)
-    if !bytes.Equal(newSum[:], sum) {
-        return nil, util.RetErrStr("Data integrity mismatch")
-    }
-
-    copy(marshalXor, b64Decoded[crc64.Size:len(b64Decoded) - md5.Size])
-    marshalled := func (key []byte, pool []byte) []byte {
-        var output = make([]byte, len(pool))
-        copy(output, pool)
-
-        counter := 0
-        for k := range pool {
-            if counter == 8 {
-                counter = 0
-            }
-            output[k] = output[k] ^ key[counter]
-            counter += 1
-        }
-
-        return output
-    } (xorKey, marshalXor)
-
-    return marshalled, nil
-}
-
 /* HTTP 500 - Internal Server Error */
 func sendBadErrorCode(writer http.ResponseWriter, err error) {
     writer.WriteHeader(http.StatusInternalServerError)
     writer.Write([]byte("500 - " + err.Error()))
     return
-}
-
-/* Send back server pub key */
-func sendPubKey(writer http.ResponseWriter, marshalled []byte, clientId []byte) error {
-    var pool = bytes.Buffer{}
-    var xorKey = make([]byte, crc64.Size)
-    rand.Read(xorKey)
-    pool.Write(xorKey)
-    marshaledXor := make([]byte, len(marshalled))
-    copy(marshaledXor, marshalled)
-    counter := 0
-    for k := range marshaledXor {
-        if counter == len(xorKey) {
-            counter = 0
-        }
-
-        marshaledXor[k] ^= xorKey[counter]
-        counter += 1
-    }
-    pool.Write(marshaledXor)
-    pool.Write(clientId)
-
-    if err := sendResponse(writer, pool.Bytes()); err != nil {
-        return err
-    }
-
-    return nil
 }
 
 func sendResponse(writer http.ResponseWriter, data []byte) error {
