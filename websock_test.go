@@ -50,6 +50,10 @@ type configInput struct {
     /* False -- start client, true -- start server */
     runningMode                     serverType
 
+    /* Configuration for the server */
+    useEncryption                   bool
+    useCompression                  bool
+
     /* Generic verbosity -- generic debug output */
     verbosity                       bool
 }
@@ -61,6 +65,9 @@ func TestMainChannel(t *testing.T) {
             controllerAddress:      CONTROLLER_DOMAIN,
             controllerPort:         CONTROLLER_PORT,
             controllerGatePath:     CONTROLLER_PATH_GATE,
+
+            useEncryption:          true,
+            useCompression:         true,
 
             runningMode:            TYPE_CLIENT,
 
@@ -90,8 +97,13 @@ func TestMainChannel(t *testing.T) {
         &out.verbosity = flag.Bool("v", false, "Generic debug verbosity")
         D("Generic debug verbosity enabled")
 
+        &out.useEncryption = flag.Bool("encrypt", true, "use standard encryption [forced]")
+        &out.useCompression = flag.Bool("compress", true, "use standard compression [optional]")
+
         return out, nil
     } ()
+
+    /* It is absolutely required to use encryption, therefore check for this prior to anything futher */
 
     if config.verbosity == true {
         func(config *configInput) {
@@ -112,6 +124,7 @@ func TestMainChannel(t *testing.T) {
     switch config.runningMode {
     case TYPE_CLIENT:
         var gateURI string = "http://" + config.controllerAddress + config.controllerGatePath
+
 
     case TYPE_SERVER:
 
