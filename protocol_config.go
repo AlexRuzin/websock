@@ -26,7 +26,7 @@ package websock
  * Any of these characters in the charset may be a the key
  *  for the client's public key exchange
  */
-const POST_BODY_KEY_CHARSET = "aielndqor"
+const POST_BODY_KEY_CHARSET         = "aielndqor"
 
 /*
  * For each data request sent by the client, the server must wait
@@ -37,18 +37,18 @@ const POST_BODY_KEY_CHARSET = "aielndqor"
  * The below value is how many iterations/checks are required before
  *  sending a 200 OK. The value is in seconds
  */
-const CONTROLLER_RESPONSE_TIMEOUT = 10
+const CONTROLLER_RESPONSE_TIMEOUT   = 10
 
 /*
  * The length of the POST parameter values. If -1, the sizes
  *  will approximate the length of the transmit pool
  */
-const POST_BODY_VALUE_LEN = -1
+const POST_BODY_VALUE_LEN           = -1
 
 /*
  * The length of the parameter name
  */
-const POST_BODY_KEY_LEN = 8
+const POST_BODY_KEY_LEN             = 8
 
 /*
  * The number of garbage parameters. Our useful information
@@ -60,25 +60,25 @@ const POST_BODY_JUNK_MAX_PARAMETERS = 8
 /*
  * User-Agent for the HTTP client
  */
-const HTTP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+const HTTP_USER_AGENT               = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
 
 /*
  * The standard Content-Type for the client
  */
-const HTTP_CONTENT_TYPE = "application/x-www-form-urlencoded"
+const HTTP_CONTENT_TYPE             = "application/x-www-form-urlencoded"
 
 /*
  * GET or POST verb when constructing circuit with HTTPd
  */
-const HTTP_VERB = "POST"
+const HTTP_VERB                     = "POST"
 
 /*
  * Constants beyond this point -- do not change these values
  */
 const (
-    CHECK_STREAM_DATA = "check stream data"
-    TEST_CONNECTION_DATA = "test connection data"
-    TERMINATE_CONNECTION_DATA = "terminate connection"
+    CHECK_STREAM_DATA               = "check stream data"
+    TEST_CONNECTION_DATA            = "test connection data"
+    TERMINATE_CONNECTION_DATA       = "terminate connection"
 )
 
 /* EOF */
