@@ -41,7 +41,8 @@ const (
 
 type serverType uint8
 const (
-    TYPE_SERVER                     serverType = iota
+    TYPE_NONE                       serverType = iota
+    TYPE_SERVER                     /* Type is a server */
     TYPE_CLIENT                     /* Type is a client */
 )
 type configInput struct {
@@ -81,8 +82,11 @@ func TestMainChannel(t *testing.T) {
             verbosity:              false,
         }
 
-        tmp := flag.Int("server-mode", int(TYPE_CLIENT),
-            "Start the test in server mode [")
+        tmp := flag.Int("server-mode", int(TYPE_NONE),
+            "Start the test in server mode, or client mode [must be selected]")
+        if int(*tmp) == 0 {
+            panic(errors.New("invalid setting, please use -h"))
+        }
         out.runningMode = serverType(*tmp)
         if out.runningMode == TYPE_CLIENT {
             /* Client-mode */
