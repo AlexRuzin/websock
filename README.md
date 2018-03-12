@@ -72,7 +72,9 @@ var ServerInstance *NetChannelService = nil
 var err error = nil
 ServerInstance, err = websock.CreateServer("/gate.php", /* NOTE: The URI is required to access the gate resources */
                                            80, 
-                                           FLAG_ENCRYPT /* Mandatory */ | FLAG_COMPRESS /* Optional -- experimental */ | FLAG_DEBUG,
+                                           FLAG_ENCRYPT  /* Mandatory */ | 
+                                           FLAG_COMPRESS /* Optional -- experimental */ | 
+                                           FLAG_DEBUG    /* Optional -- verbosity in debug output */,
                                            clientHandlerFunction)
 if err != nil {
     panic(err.Error())
@@ -84,6 +86,8 @@ if err != nil {
 The `clientHandlerFunction` will handle all new requests. The `NetInstance` structure will be passed in this structure, which will allow the calling application to read or write to the instance. 
 The below code writes a string to the socket stream of an inbound client.
 ```go
+package websock
+
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     /* 
      * The server has already verified the URI path. If this is a new connection then a 
@@ -142,7 +146,12 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
 Having the client connect requires a call to initialize the client library by calling `websock.BuildChannel()`, where the target URI is passed, in the form of `http://domain.com:7676/handler.php`. Several flags may be passed as well, which will be elaborated on further below. Note that the client will *not* connect to the server at this point. The `websock.BuildChannel()` method returns a `NetChannelClient` structure, which will implement the Read/Write functions. Please note that the ```FLAG_ENCRYPT``` flag must be set. Additionally, if data compression is required for large, low-entropy streams, then the ```FLAG_COMPRESS``` switch may be used for the BuildChannel() flags parameter.
 
 ```go
-client, err := BuildChannel(gate_uri, FLAG_ENCRYPT /* Required */ | FLAG_COMMPRESS /* Optional */ | FLAG_DEBUG)
+package websock
+
+client, err := BuildChannel(gate_uri, 
+                            FLAG_ENCRYPT    /* Required */ | 
+                            FLAG_COMMPRESS  /* Optional */ | 
+                            FLAG_DEBUG      /* Optional log output verbosity */)
 if err != nil || client == nil {
     D(err.Error())
     T("Cannot build net channel")
@@ -152,6 +161,8 @@ if err != nil || client == nil {
 Next, the client must connect to the server by invoking the `NetChannelClient.InitializeCircuit()` method.
 
 ```go
+package websock
+
 if err := client.InitializeCircuit(); err != nil {
     D(err.Error())
     T("Service is not responding")
