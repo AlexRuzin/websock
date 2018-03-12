@@ -23,18 +23,21 @@
 package websock
 
 import (
-    "github.com/AlexRuzin/util"
     "testing"
     "flag"
     "math"
     "errors"
     "strconv"
+
+    "github.com/AlexRuzin/util"
 )
 
 /* Configuration */
-const CONTROLLER_DOMAIN             string = "127.0.0.1"
-const CONTROLLER_PATH_GATE          string = "/gate.php"
-const CONTROLLER_PORT               int16  = 2222
+const (
+    CONTROLLER_DOMAIN             string = "127.0.0.1"
+    CONTROLLER_PATH_GATE          string = "/gate.php"
+    CONTROLLER_PORT               int16  = 2222
+)
 
 type serverType uint8
 const (
