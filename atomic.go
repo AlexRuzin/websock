@@ -234,7 +234,7 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     return
 }
 
-func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
+func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
     if (flags & FLAG_DO_NOT_USE) == 1 {
         return nil, util.RetErrStr("Invalid flag: FLAG_DO_NOT_USE")
     }
@@ -243,35 +243,36 @@ func BuildChannel(gate_uri string, flags FlagVal) (*NetChannelClient, error) {
         return nil, util.RetErrStr("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
     }
 
-    main_url, err := url.Parse(gate_uri)
+
+    mainURL, err := url.Parse(gateURI)
     if err != nil {
         return nil, err
     }
-    if main_url.Scheme != "http" {
+    if mainURL.Scheme != "http" {
         return nil, util.RetErrStr("HTTP scheme must not use TLS")
     }
 
-    port, _ := strconv.Atoi(main_url.Port())
-    var io_channel = &NetChannelClient{
-        controllerURL: main_url,
-        inputURI: gate_uri,
-        port: int16(port),
-        flags: flags,
-        connected: false,
-        path: main_url.Path,
-        host: main_url.Host,
-        secret: nil,
-        responseData: &bytes.Buffer{},
-        transport: nil,
-        request: nil,
-        cancelled: false,
+    port, _ := strconv.Atoi(mainURL.Port())
+    var ioChannel = &NetChannelClient{
+        controllerURL:      mainURL,
+        inputURI:           gateURI,
+        port:               int16(port),
+        flags:              flags,
+        connected:          false,
+        path:               mainURL.Path,
+        host:               mainURL.Host,
+        secret:             nil,
+        responseData:       &bytes.Buffer{},
+        transport:          nil,
+        request:            nil,
+        cancelled:          false,
     }
 
-    if (io_channel.flags & FLAG_DEBUG) > 1 {
+    if (ioChannel.flags & FLAG_DEBUG) > 1 {
         util.DebugOut("NetChannelClient structure initialized")
     }
 
-    return io_channel, nil
+    return ioChannel, nil
 }
 
 func (f *NetChannelClient) InitializeCircuit() error {
@@ -288,22 +289,22 @@ func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Generate the b64([xor][marshalled][md5sum]) buffer
      */
-    post_pool, err := f.genTxPool(pubKeyMarshalled)
-    if err != nil || len(post_pool) < 1 {
+    postPool, err := f.genTxPool(pubKeyMarshalled)
+    if err != nil || len(postPool) < 1 {
         return err
     }
 
     /* generate fake key/value pools */
-    var parm_map = make(map[string]string)
-    num_of_parameters := util.RandInt(3, POST_BODY_JUNK_MAX_PARAMETERS)
+    var parmMap = make(map[string]string)
+    numOfParameters := util.RandInt(3, POST_BODY_JUNK_MAX_PARAMETERS)
 
-    magic_number := num_of_parameters / 2
-    for i := num_of_parameters; i != 0; i -= 1 {
+    magicNumber := numOfParameters / 2
+    for i := numOfParameters; i != 0; i -= 1 {
         var pool, key string
         if POST_BODY_VALUE_LEN != -1 {
             pool = encodeKeyValue(POST_BODY_VALUE_LEN)
         } else {
-            pool = encodeKeyValue(len(string(post_pool)) * 2)
+            pool = encodeKeyValue(len(string(postPool)) * 2)
         }
         key = encodeKeyValue(POST_BODY_KEY_LEN)
 
@@ -313,19 +314,19 @@ func (f *NetChannelClient) InitializeCircuit() error {
             continue
         }
 
-        if i == magic_number {
+        if i == magicNumber {
             parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
-            parm_map[util.B64E([]byte(parameter))] = string(post_pool)
+            parmMap[util.B64E([]byte(parameter))] = string(postPool)
             continue
         }
 
-        parm_map[key] = pool
+        parmMap[key] = pool
     }
 
     /* Perform HTTP TX */
-    body, tx_err := sendTransmission(HTTP_VERB /* POST */, f.inputURI, parm_map, f)
-    if tx_err != nil && tx_err != io.EOF {
-        return tx_err
+    body, txErr := sendTransmission(HTTP_VERB /* POST */, f.inputURI, parmMap, f)
+    if txErr != nil && txErr != io.EOF {
+        return txErr
     }
 
     encoded, err := util.B64D(string(body))
@@ -333,15 +334,15 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
-    var response_pool = bytes.Buffer{}
-    response_pool.Write(encoded)
+    var responsePool = bytes.Buffer{}
+    responsePool.Write(encoded)
 
-    var xor_key = make([]byte, crc64.Size)
-    var xord_marshalled = make([]byte, len(encoded) - crc64.Size - md5.Size)
-    var client_id = make([]byte, md5.Size)
+    var xorKey = make([]byte, crc64.Size)
+    var xordMarshaled = make([]byte, len(encoded) - crc64.Size - md5.Size)
+    var clientId = make([]byte, md5.Size)
 
-    response_pool.Read(xor_key)
-    response_pool.Read(xord_marshalled)
+    responsePool.Read(xorKey)
+    responsePool.Read(xordMarshaled)
     marshalled := func (xor_key []byte, encoded []byte) []byte {
         output := make([]byte, len(encoded))
         copy(output, encoded)
@@ -355,10 +356,10 @@ func (f *NetChannelClient) InitializeCircuit() error {
             counter += 1
         }
         return output
-    } (xor_key, xord_marshalled)
-    response_pool.Read(client_id)
+    } (xorKey, xordMarshaled)
+    responsePool.Read(clientId)
 
-    f.clientId = client_id
+    f.clientId = clientId
     f.clientIdString = hex.EncodeToString(f.clientId)
 
     serverPubKey, ok := curve.Unmarshal(marshalled)
@@ -423,13 +424,13 @@ func (f *NetChannelClient) Close() {
 func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (out bool) {
     /* FIXME -- this should be consolidated code */
     out = false
-    var key_vector = make([]string, len(char_set))
+    var keyVector = make([]string, len(char_set))
     for i := len(char_set) - 1; i >= 0; i -= 1 {
-        key_vector[i] = util.B64E([]byte(string(char_set[i])))
+        keyVector[i] = util.B64E([]byte(string(char_set[i])))
     }
 
-    for i := range key_vector {
-        if bytes.Equal([]byte(key), []byte(key_vector[i])) {
+    for i := range keyVector {
+        if bytes.Equal([]byte(key), []byte(keyVector[i])) {
             out = true
             break
         }
@@ -447,14 +448,14 @@ func (f *NetChannelClient) testCircuit() error {
         return util.RetErrStr("testCircuit() failed on the server side")
     }
 
-    var response_data = make([]byte, f.responseData.Len())
-    read, err := f.readStream(response_data, FLAG_TEST_CONNECTION)
+    var responseData = make([]byte, f.responseData.Len())
+    read, err := f.readStream(responseData, FLAG_TEST_CONNECTION)
     if err != io.EOF || read != len(TEST_CONNECTION_DATA) {
         return util.RetErrStr("testCircuit() invalid response from server side")
     }
 
-    if !util.IsAsciiPrintable(string(response_data)) ||
-        strings.Compare(string(response_data), TEST_CONNECTION_DATA) != 0 {
+    if !util.IsAsciiPrintable(string(responseData)) ||
+        strings.Compare(string(responseData), TEST_CONNECTION_DATA) != 0 {
         return util.RetErrStr("testCircuit() data corruption from server side")
     }
 
@@ -506,14 +507,14 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
     if err != nil {
         return 0, 0, err
     }
-    var parm_map = make(map[string]string)
+    var parmMap = make(map[string]string)
 
     /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
     value := util.B64E(encrypted)
     key := util.B64E([]byte(f.clientIdString))
-    parm_map[key] = value
+    parmMap[key] = value
 
-    body, err := sendTransmission(HTTP_VERB, f.inputURI, parm_map, f)
+    body, err := sendTransmission(HTTP_VERB, f.inputURI, parmMap, f)
     if err != nil {
         return 0,0, err
     }
@@ -573,7 +574,7 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     return read, io.EOF
 }
 
-func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal, client_id string) (encrypted []byte, err error) {
+func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal, clientId string) (encrypted []byte, err error) {
     if len(data) == 0 {
         return nil, util.RetErrStr("Invalid parameters for encryptData")
     }
@@ -581,21 +582,21 @@ func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags 
 
     /* Transmission object */
     tx := &TransferUnit{
-        ClientID:           client_id,
+        ClientID:           clientId,
         TimeStamp: func () string {
             return time.Now().String()
         } (),
         Data: make([]byte, len(data)),
         DecryptedSum: func (p []byte) string {
-            data_sum := md5.Sum(data)
-            return hex.EncodeToString(data_sum[:])
+            dataSum := md5.Sum(data)
+            return hex.EncodeToString(dataSum[:])
         } (data),
         Direction:          directionFlags,
         Flags:              otherFlags,
     }
     copy(tx.Data, data)
 
-    tx_stream, err := func(tx TransferUnit) ([]byte, error) {
+    txStream, err := func(tx TransferUnit) ([]byte, error) {
         b := new(bytes.Buffer)
         e := gob.NewEncoder(b)
         if err := e.Encode(tx); err != nil {
@@ -607,7 +608,7 @@ func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags 
         return nil, err
     }
 
-    output, err := cryptog.RC4_Encrypt(tx_stream, cryptog.RC4_PrepareKey(secret))
+    output, err := cryptog.RC4_Encrypt(txStream, cryptog.RC4_PrepareKey(secret))
     if err != nil {
         return nil, err
     }
@@ -623,25 +624,25 @@ func (f *NetChannelClient) genTxPool(pubKeyMarshalled []byte) ([]byte, error) {
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])  *
      ***********************************************************************************************/
     var pool = bytes.Buffer{}
-    xor_key := make([]byte, crc64.Size)
-    rand.Read(xor_key)
-    pool.Write(xor_key)
-    marshal_encrypted := make([]byte, len(pubKeyMarshalled))
-    copy(marshal_encrypted, pubKeyMarshalled)
+    xorKey := make([]byte, crc64.Size)
+    rand.Read(xorKey)
+    pool.Write(xorKey)
+    marshalEncrypted := make([]byte, len(pubKeyMarshalled))
+    copy(marshalEncrypted, pubKeyMarshalled)
     counter := 0
-    for k := range marshal_encrypted {
-        if counter == len(xor_key) {
+    for k := range marshalEncrypted {
+        if counter == len(xorKey) {
             counter = 0
         }
-        marshal_encrypted[k] ^= xor_key[counter]
+        marshalEncrypted[k] ^= xorKey[counter]
         counter += 1
     }
-    pool.Write(marshal_encrypted)
-    pool_sum := md5.Sum(pool.Bytes())
-    pool.Write(pool_sum[:])
+    pool.Write(marshalEncrypted)
+    poolSum := md5.Sum(pool.Bytes())
+    pool.Write(poolSum[:])
 
-    b64_buf := util.B64E(pool.Bytes())
-    return []byte(b64_buf), nil
+    b64Buf := util.B64E(pool.Bytes())
+    return []byte(b64Buf), nil
 }
 
 func encodeKeyValue (high int) string {
@@ -655,9 +656,9 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
     for k, v := range m {
         form.Set(k, v)
     }
-    form_encoded := form.Encode()
+    formEncoded := form.Encode()
 
-    req, err := http.NewRequest(verb /* POST */, URI, strings.NewReader(form_encoded))
+    req, err := http.NewRequest(verb /* POST */, URI, strings.NewReader(formEncoded))
     if err != nil {
         return nil, err
     }
@@ -685,21 +686,21 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
     }
     req.Header.Set("Host", uri.Hostname())
 
-    resp_io := make(chan *http.Response)
+    respIo := make(chan *http.Response)
     tr := &http.Transport{}
-    http_client := &http.Client{Transport: tr}
+    httpClient := &http.Client{Transport: tr}
     client.request = req
     client.transport = tr
     go func (r *http.Request) {
-        resp, tx_status := http_client.Do(r)
+        resp, tx_status := httpClient.Do(r)
         if tx_status != nil {
-            close(resp_io)
+            close(respIo)
             return
         }
-        resp_io <- resp
+        respIo <- resp
     } (req)
 
-    resp, ok := <- resp_io
+    resp, ok := <- respIo
     if !ok {
         if client.cancelled == true {
             /* Forced write request */
@@ -710,7 +711,7 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
         }
         return nil, util.RetErrStr("Failure in client request")
     }
-    defer close(resp_io)
+    defer close(respIo)
 
     if resp.Status != "200 OK" {
         return nil, util.RetErrStr("HTTP 200 OK not returned")
