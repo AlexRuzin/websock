@@ -60,6 +60,7 @@ type configInput struct {
     verbosity                       bool
 }
 
+var genericConfig *configInput = nil
 func TestMainChannel(t *testing.T) {
     /* Parse the user input and create a configInput instance */
     config, _ := func () (*configInput, error) {
@@ -104,10 +105,11 @@ func TestMainChannel(t *testing.T) {
 
         return out, nil
     } ()
+    genericConfig = config
 
     /* It is absolutely required to use encryption, therefore check for this prior to anything futher */
     if config.useEncryption == false {
-        panic(errors.New("Must use the 'encrypt' flag to 'true'"))
+        panic(errors.New("must use the 'encrypt' flag to 'true'"))
     }
 
     if config.verbosity == true {
@@ -132,8 +134,41 @@ func TestMainChannel(t *testing.T) {
     switch config.runningMode {
     case TYPE_CLIENT:
         var gateURI string = "http://" + config.controllerAddress + config.controllerGatePath
+        D("Client target URI is: " + gateURI)
 
+        client, err := BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */,
 
+            /* The below inlines will determine which flags to use based on use input */
+            func (useDebug bool) FlagVal {
+                if useDebug == true {
+                    return FLAG_DEBUG
+                }
+
+                return 0
+            } (config.verbosity) |
+            func (useEncryption bool) FlagVal {
+                if useEncryption == true {
+                    return FLAG_ENCRYPT
+                }
+
+                return 0
+            } (config.useEncryption) |
+            func (useCompression bool) FlagVal {
+                if useCompression == true {
+                    return FLAG_COMPRESS
+                }
+
+                return 0
+            } (config.useCompression),
+            )
+        if err != nil {
+            panic(err)
+        }
+        if err := client.InitializeCircuit(); err != nil {
+            panic(err)
+        }
+
+        break
     case TYPE_SERVER:
 
     }
@@ -237,7 +272,9 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
 }
 
 func D(debug string) {
-    util.DebugOut("[+] " + debug)
+    if genericConfig.verbosity == true {
+        util.DebugOut("[+] " + debug + "\r\n")
+    }
 }
 
 func T(debug string) {
