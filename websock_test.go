@@ -29,6 +29,8 @@ import (
     "strings"
     "flag"
     "math"
+    "errors"
+    "strconv"
 )
 
 /* Configuration */
@@ -104,6 +106,9 @@ func TestMainChannel(t *testing.T) {
     } ()
 
     /* It is absolutely required to use encryption, therefore check for this prior to anything futher */
+    if config.useEncryption == false {
+        panic(errors.New("Must use the 'encrypt' flag to 'true'"))
+    }
 
     if config.verbosity == true {
         func(config *configInput) {
@@ -118,6 +123,9 @@ func TestMainChannel(t *testing.T) {
                     util.IntToString(int(config.controllerPort)))
                 D("Default listen path is set to: " + config.controllerGatePath)
             }
+
+            D("Using encryption [forced]: " + strconv.FormatBool(config.useEncryption))
+            D("Using compression [optional]: " + strconv.FormatBool(config.useCompression))
         }(config)
     }
 
