@@ -27,21 +27,58 @@ import (
     "testing"
     "os"
     "strings"
+    "flag"
+    "math"
 )
 
-/* Test configuration */
-const RUN_CLIENT_TEST                bool = true
-const RUN_SERVER_TEST                bool = true
-
 /* Configuration */
-//const CONTROLLER_DOMAIN              string = "192.168.0.50:8080"
 const CONTROLLER_DOMAIN              string = "127.0.0.1"
 const CONTROLLER_PATH_GATE           string = "/gate.php"
-const CONTROLLER_PORT                int16 = 80
+const CONTROLLER_PORT                int16  = 80
 
-const STANDALONE                     bool = false
+type configInput struct {
+    controllerAddress               string
+    controllerPort                  int16
+
+    controllerGatePath              string
+
+    /* False -- start client, true -- start server */
+    startServer                     bool
+}
 
 func TestMainChannel(t *testing.T) {
+    /* Parse the user input and create a configInput instance */
+    config, _ := func () (*configInput, error) {
+        out := &configInput{
+            controllerAddress:      CONTROLLER_DOMAIN,
+            controllerPort:         CONTROLLER_PORT,
+            controllerGatePath:     CONTROLLER_PATH_GATE,
+
+            startServer:            false,
+        }
+
+        &out.startServer = flag.Bool("server-mode", false, "Start the test in server mode")
+        if out.startServer == false {
+            /* Client-mode */
+            &out.controllerAddress = flag.String("server-address", out.controllerAddress,
+                "Target server address")
+        }
+
+        &out.controllerGatePath = flag.String("gate-path", out.controllerGatePath,
+            "Default path for the gate, i.e. /path/gate.php")
+
+        tmpPort := flag.Int("port", int(out.controllerPort),
+            "Default service port [1-65536]")
+        out.controllerPort = int16(*tmpPort)
+        if float64(out.controllerPort) >= math.Exp2(float64(16)) {
+            /* Cannot exceed 2^16 */
+            panic(flag.ErrHelp)
+        }
+
+        return out, nil
+    } ()
+
+
     if STANDALONE == true {
         if len(os.Args) == 0 {
             panic("Invalid arguments")
