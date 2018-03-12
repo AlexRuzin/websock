@@ -182,27 +182,27 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         return
     }
     const cs = POST_BODY_KEY_CHARSET
-    var marshalled_client_pub_key *string = nil
+    var marshalledPublicClientKey *string = nil
     for key := range reader.Form {
         for i := len(POST_BODY_KEY_CHARSET); i != 0; i -= 1 {
-            var tmp_key = string(cs[i - 1])
+            var tmpKey = string(cs[i - 1])
 
-            decoded_key, err := util.B64D(key)
+            decodedKey, err := util.B64D(key)
             if err != nil {
                 return
             }
 
-            if strings.Compare(tmp_key, string(decoded_key)) == 0 {
-                marshalled_client_pub_key = &reader.Form[key][0]
+            if strings.Compare(tmpKey, string(decodedKey)) == 0 {
+                marshalledPublicClientKey = &reader.Form[key][0]
                 break
             }
         }
-        if marshalled_client_pub_key != nil {
+        if marshalledPublicClientKey != nil {
             break
         }
     }
 
-    if marshalled_client_pub_key == nil {
+    if marshalledPublicClientKey == nil {
         /*
          * Parameter for key negotiation does not exist. This implies that either someone is not using
          *  the server in the designed fashion, or that there is another command request coming from
@@ -218,11 +218,11 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
 
          for k := range key {
              var err error = nil
-             var decoded_key []byte
-             if decoded_key, err = util.B64D(k); err != nil {
+             var decodedKey []byte
+             if decodedKey, err = util.B64D(k); err != nil {
                  continue
              }
-             client := channelService.clientMap[string(decoded_key)]
+             client := channelService.clientMap[string(decodedKey)]
              if client != nil {
                  /*
                   * An active connection exists.
@@ -264,7 +264,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     }
 
     /* Parse client-side public ECDH key*/
-    marshalled, err := getClientPublicKey(*marshalled_client_pub_key)
+    marshalled, err := getClientPublicKey(*marshalledPublicClientKey)
     if err != nil || marshalled == nil {
         sendBadErrorCode(writer, err)
         util.DebugOut(err.Error())
@@ -294,8 +294,8 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         sendBadErrorCode(writer, util.RetErrStr("Failed to marshal server-side pub key"))
         return
     }
-    client_id := md5.Sum(marshalled)
-    if err := sendPubKey(writer, serverPubKeyMarshalled, client_id[:]); err != nil {
+    clientId := md5.Sum(marshalled)
+    if err := sendPubKey(writer, serverPubKeyMarshalled, clientId[:]); err != nil {
         sendBadErrorCode(writer, err)
         return
     }
@@ -315,8 +315,8 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     var instance = &NetInstance{
         service:            channelService,
         secret:             secret,
-        clientId:           client_id[:],
-        ClientIdString:     hex.EncodeToString(client_id[:]),
+        clientId:           clientId[:],
+        ClientIdString:     hex.EncodeToString(clientId[:]),
         clientRX:           &bytes.Buffer{},
         clientTX:           &bytes.Buffer{},
         connected:          false,
@@ -424,19 +424,19 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     return nil
 }
 
-func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data []byte, txUnit *TransferUnit, status error) {
-    status = util.RetErrStr("decryptData: Unknown error")
-    client_id = ""
-    raw_data = nil
-    txUnit = nil
+func decryptData(b64Encoded string, secret []byte) (clientId string, rawData []byte, txUnit *TransferUnit, status error) {
+    status      = util.RetErrStr("decryptData: Unknown error")
+    clientId    = ""
+    rawData     = nil
+    txUnit      = nil
 
-    b64_decoded, err := util.B64D(b64_encoded)
+    b64Decoded, err := util.B64D(b64Encoded)
     if err != nil {
         status = err
         return
     }
 
-    decrypted, err := cryptog.RC4_Decrypt(b64_decoded, cryptog.RC4_PrepareKey(secret))
+    decrypted, err := cryptog.RC4_Decrypt(b64Decoded, cryptog.RC4_PrepareKey(secret))
     if err != nil {
         status = err
         return
@@ -460,44 +460,44 @@ func decryptData(b64_encoded string, secret []byte) (client_id string, raw_data 
         return
     }
 
-    new_sum := func (p []byte) string {
-        data_sum := md5.Sum(p)
-        return hex.EncodeToString(data_sum[:])
+    newSum := func (p []byte) string {
+        dataSum := md5.Sum(p)
+        return hex.EncodeToString(dataSum[:])
     } (txUnit.Data)
-    if strings.Compare(new_sum, txUnit.DecryptedSum) != 0 {
+    if strings.Compare(newSum, txUnit.DecryptedSum) != 0 {
         status = util.RetErrStr("decryptData: Data corruption")
         return
     }
 
-    raw_data = txUnit.Data
-    client_id = txUnit.ClientID
-    status = nil
+    rawData     = txUnit.Data
+    clientId    = txUnit.ClientID
+    status      = nil
     return
 }
 
-func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
+func getClientPublicKey(buffer string) (marshalledPublicKey []byte, err error) {
     /*
      * Read in an HTTP request in the following format:
      *  b64([8 bytes XOR key][XOR-SHIFT encrypted marshalled public ECDH key][md5sum of first 2])
      */
-    b64_decoded, err := util.B64D(buffer)
+    b64Decoded, err := util.B64D(buffer)
     if err != nil {
         return nil, err
     }
-    var xor_key = make([]byte, crc64.Size)
-    copy(xor_key, b64_decoded[:crc64.Size])
-    var marshal_xor = make([]byte, len(b64_decoded) - crc64.Size - md5.Size)
+    var xorKey = make([]byte, crc64.Size)
+    copy(xorKey, b64Decoded[:crc64.Size])
+    var marshalXor = make([]byte, len(b64Decoded) - crc64.Size - md5.Size)
     var sum = make([]byte, md5.Size)
-    copy(sum, b64_decoded[len(xor_key) + len(marshal_xor):])
+    copy(sum, b64Decoded[len(xorKey) + len(marshalXor):])
 
-    sum_buffer := make([]byte, len(b64_decoded) - md5.Size)
-    copy(sum_buffer, b64_decoded[:len(b64_decoded) - md5.Size])
-    new_sum := md5.Sum(sum_buffer)
-    if !bytes.Equal(new_sum[:], sum) {
+    sumBuffer := make([]byte, len(b64Decoded) - md5.Size)
+    copy(sumBuffer, b64Decoded[:len(b64Decoded) - md5.Size])
+    newSum := md5.Sum(sumBuffer)
+    if !bytes.Equal(newSum[:], sum) {
         return nil, util.RetErrStr("Data integrity mismatch")
     }
 
-    copy(marshal_xor, b64_decoded[crc64.Size:len(b64_decoded) - md5.Size])
+    copy(marshalXor, b64Decoded[crc64.Size:len(b64Decoded) - md5.Size])
     marshalled := func (key []byte, pool []byte) []byte {
         var output = make([]byte, len(pool))
         copy(output, pool)
@@ -512,7 +512,7 @@ func getClientPublicKey(buffer string) (marshalled_pub_key []byte, err error) {
         }
 
         return output
-    } (xor_key, marshal_xor)
+    } (xorKey, marshalXor)
 
     return marshalled, nil
 }
@@ -525,24 +525,24 @@ func sendBadErrorCode(writer http.ResponseWriter, err error) {
 }
 
 /* Send back server pub key */
-func sendPubKey(writer http.ResponseWriter, marshalled []byte, client_id []byte) error {
+func sendPubKey(writer http.ResponseWriter, marshalled []byte, clientId []byte) error {
     var pool = bytes.Buffer{}
-    var xor_key = make([]byte, crc64.Size)
-    rand.Read(xor_key)
-    pool.Write(xor_key)
-    marshalled_xord := make([]byte, len(marshalled))
-    copy(marshalled_xord, marshalled)
+    var xorKey = make([]byte, crc64.Size)
+    rand.Read(xorKey)
+    pool.Write(xorKey)
+    marshaledXor := make([]byte, len(marshalled))
+    copy(marshaledXor, marshalled)
     counter := 0
-    for k := range marshalled_xord {
-        if counter == len(xor_key) {
+    for k := range marshaledXor {
+        if counter == len(xorKey) {
             counter = 0
         }
 
-        marshalled_xord[k] ^= xor_key[counter]
+        marshaledXor[k] ^= xorKey[counter]
         counter += 1
     }
-    pool.Write(marshalled_xord)
-    pool.Write(client_id)
+    pool.Write(marshaledXor)
+    pool.Write(clientId)
 
     if err := sendResponse(writer, pool.Bytes()); err != nil {
         return err
@@ -556,13 +556,13 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
         return util.RetErrStr("sendResponse: Invalid parameter")
     }
 
-    var b64_encoded = util.B64E(data)
+    var b64Encoded = util.B64E(data)
 
     writer.Header().Set("Content-Type", HTTP_CONTENT_TYPE)
     writer.Header().Set("Connection", "close")
     writer.WriteHeader(http.StatusOK)
 
-    fmt.Fprintln(writer, b64_encoded)
+    fmt.Fprintln(writer, b64Encoded)
 
     return nil
 }
@@ -583,7 +583,7 @@ func (f *NetInstance) Close() {
     channelService.CloseClient(f)
 }
 
-func CreateServer(path_gate string, port int16, flags FlagVal, handler func(client *NetInstance,
+func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
 
     /* The FLAG_ENCRYPT switch must always be set to true */
@@ -595,7 +595,7 @@ func CreateServer(path_gate string, port int16, flags FlagVal, handler func(clie
         IncomingHandler: handler,
         port: port,
         Flags: flags,
-        pathGate: path_gate,
+        pathGate: pathGate,
 
         /* Map consists of key: ClientId (string) and value: *NetInstance object */
         clientMap: make(map[string]*NetInstance),
