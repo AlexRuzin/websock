@@ -25,8 +25,6 @@ package websock
 import (
     "github.com/AlexRuzin/util"
     "testing"
-    "os"
-    "strings"
     "flag"
     "math"
     "errors"
@@ -60,7 +58,10 @@ type configInput struct {
     verbosity                       bool
 }
 
-var genericConfig *configInput = nil
+var (
+    genericConfig   *configInput = nil
+    mainServer      *NetChannelService = nil
+)
 func TestMainChannel(t *testing.T) {
     /* Parse the user input and create a configInput instance */
     config, _ := func () (*configInput, error) {
@@ -133,34 +134,35 @@ func TestMainChannel(t *testing.T) {
 
     switch config.runningMode {
     case TYPE_CLIENT:
-        var gateURI string = "http://" + config.controllerAddress + config.controllerGatePath
+        var gateURI string = "http://" + config.controllerAddress + ":" +
+            util.IntToString(int(config.controllerPort)) + config.controllerGatePath
         D("Client target URI is: " + gateURI)
 
-        client, err := BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */,
+        client, err := BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */ ,
 
             /* The below inlines will determine which flags to use based on use input */
-            func (useDebug bool) FlagVal {
+            func(useDebug bool) FlagVal {
                 if useDebug == true {
                     return FLAG_DEBUG
                 }
 
                 return 0
-            } (config.verbosity) |
-            func (useEncryption bool) FlagVal {
-                if useEncryption == true {
-                    return FLAG_ENCRYPT
-                }
+            }(config.verbosity)|
+                func(useEncryption bool) FlagVal {
+                    if useEncryption == true {
+                        return FLAG_ENCRYPT
+                    }
 
-                return 0
-            } (config.useEncryption) |
-            func (useCompression bool) FlagVal {
-                if useCompression == true {
-                    return FLAG_COMPRESS
-                }
+                    return 0
+                }(config.useEncryption)|
+                func(useCompression bool) FlagVal {
+                    if useCompression == true {
+                        return FLAG_COMPRESS
+                    }
 
-                return 0
-            } (config.useCompression),
-            )
+                    return 0
+                }(config.useCompression),
+        )
         if err != nil {
             panic(err)
         }
@@ -170,92 +172,41 @@ func TestMainChannel(t *testing.T) {
 
         break
     case TYPE_SERVER:
+        D("Server is running on localhost, port: " + util.IntToString(int(config.controllerPort)) +
+            ", on HTTP URI path: " + config.controllerGatePath)
 
+        server, err := CreateServer(config.controllerGatePath, config.controllerPort,
+            /* The below inlines will determine which flags to use based on use input */
+            func(useDebug bool) FlagVal {
+                if useDebug == true {
+                    return FLAG_DEBUG
+                }
+
+                return 0
+            }(config.verbosity)|
+                func(useEncryption bool) FlagVal {
+                    if useEncryption == true {
+                        return FLAG_ENCRYPT
+                    }
+
+                    return 0
+                }(config.useEncryption)|
+                func(useCompression bool) FlagVal {
+                    if useCompression == true {
+                        return FLAG_COMPRESS
+                    }
+
+                    return 0
+                }(config.useCompression),
+            incomingClientHandler)
+        if err != nil {
+            panic(err)
+        }
+        mainServer = server
     }
 
-
-    if STANDALONE == true {
-        if len(os.Args) == 0 {
-            panic("Invalid arguments")
-        }
-
-        var mode = os.Args[1:]
-        if strings.Compare("server", mode[0]) == 0{
-            D("Building the server processor")
-            D("Starting websock service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
-
-            service, err := CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
-                CONTROLLER_PORT, /* 80 */
-                FLAG_DEBUG,
-                incomingClientHandler)
-            if err != nil || service == nil {
-                D(err.Error())
-                T("Cannot start websock service")
-            }
-        }
-
-        if strings.Compare("client", mode[0]) == 0 {
-            D("Building the client transporter")
-
-            gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-            client, err := BuildChannel(gate_uri, FLAG_DEBUG)
-            if err != nil || client == nil {
-                D(err.Error())
-                T("Cannot build net channel")
-            }
-
-            if err := client.InitializeCircuit(); err != nil {
-                D(err.Error())
-                T("Service is not responding")
-            }
-        }
-
-        return
-    }
-
-    var service *NetChannelService = nil
-    if RUN_SERVER_TEST == true {
-        D("Building the server processor")
-        D("Starting websock service on [TCP] port: " + util.IntToString(int(CONTROLLER_PORT)))
-
-        var err error
-        service, err = CreateServer(CONTROLLER_PATH_GATE, /* /gate.php */
-                                     CONTROLLER_PORT, /* 80 */
-                                     FLAG_DEBUG,
-                                     incomingClientHandler)
-        if err != nil || service == nil {
-            D(err.Error())
-            T("Cannot start websock service")
-        }
-    }
-
-    if RUN_CLIENT_TEST == true {
-        D("Building the client transporter")
-
-        gate_uri := "http://" + CONTROLLER_DOMAIN + CONTROLLER_PATH_GATE
-        client, err := BuildChannel(gate_uri, FLAG_DEBUG)
-        if err != nil || client == nil {
-            D(err.Error())
-            T("Cannot build net channel")
-        }
-
-        if err := client.InitializeCircuit(); err != nil {
-            D(err.Error())
-            T("Service is not responding")
-        }
-
-        go func (client *NetChannelClient) {
-            util.SleepSeconds(20)
-            util.DebugOut("Sending forced write request...")
-            client.Write([]byte("test data"))
-        } (client)
-
-        util.WaitForever()
-    }
-
-    if RUN_SERVER_TEST == true {
-        util.WaitForever()
-    }
+    /* Wait forever */
+    util.WaitForever()
 }
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
