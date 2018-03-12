@@ -83,11 +83,11 @@ func TestMainChannel(t *testing.T) {
         out.runningMode = serverType(*tmp)
         if out.runningMode == TYPE_CLIENT {
             /* Client-mode */
-            &out.controllerAddress = flag.String("server-address", out.controllerAddress,
+            out.controllerAddress = *flag.String("server-address", out.controllerAddress,
                 "Target server address")
         }
 
-        &out.controllerGatePath = flag.String("gate-path", out.controllerGatePath,
+        out.controllerGatePath = *flag.String("gate-path", out.controllerGatePath,
             "Default path for the gate, i.e. /path/gate.php")
 
         tmpPort := flag.Int("port", int(out.controllerPort),
@@ -98,11 +98,11 @@ func TestMainChannel(t *testing.T) {
             panic(flag.ErrHelp)
         }
 
-        &out.verbosity = flag.Bool("v", false, "Generic debug verbosity")
+        out.verbosity = *flag.Bool("v", false, "Generic debug verbosity")
         D("Generic debug verbosity enabled")
 
-        &out.useEncryption = flag.Bool("encrypt", true, "use standard encryption [forced]")
-        &out.useCompression = flag.Bool("compress", true, "use standard compression [optional]")
+        out.useEncryption = *flag.Bool("encrypt", true, "use standard encryption [forced]")
+        out.useCompression = *flag.Bool("compress", true, "use standard compression [optional]")
 
         return out, nil
     } ()
