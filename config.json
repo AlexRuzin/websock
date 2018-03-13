@@ -1,0 +1,15 @@
+{
+  "server": true,
+  "verbosity": true,
+  "encryption": true,
+  "compression": true,
+  "server_config": {
+    "port": 2222,
+    "path": "/gate.php"
+  },
+  "client_config:": {
+    "domain": "127.0.0.1",
+    "port": 2222,
+    "path": "/gate.php"
+  }
+}
