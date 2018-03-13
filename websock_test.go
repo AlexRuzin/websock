@@ -146,8 +146,7 @@ func TestMainChannel(t *testing.T) {
 
     switch config.Server {
     case false: /* Client mode */
-        var gateURI string = "http://" + config.controllerAddress + ":" +
-            util.IntToString(int(config.controllerPort)) + config.controllerGatePath
+        var gateURI string = "http://" + config.Domain + ":" + util.IntToString(int(config.Port)) + config.Path
         D("Client target URI is: " + gateURI)
 
         client, err := BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */ ,
@@ -159,21 +158,21 @@ func TestMainChannel(t *testing.T) {
                 }
 
                 return 0
-            }(config.verbosity)|
+            }(config.Verbosity)|
                 func(useEncryption bool) FlagVal {
                     if useEncryption == true {
                         return FLAG_ENCRYPT
                     }
 
                     return 0
-                }(config.useEncryption)|
+                }(config.Encryption)|
                 func(useCompression bool) FlagVal {
                     if useCompression == true {
                         return FLAG_COMPRESS
                     }
 
                     return 0
-                }(config.useCompression),
+                }(config.Compression),
         )
         if err != nil {
             panic(err)
@@ -184,10 +183,10 @@ func TestMainChannel(t *testing.T) {
 
         break
     case true: /* Server mode */
-        D("Server is running on localhost, port: " + util.IntToString(int(config.controllerPort)) +
-            ", on HTTP URI path: " + config.controllerGatePath)
+        D("Server is running on localhost, port: " + util.IntToString(int(config.Port)) +
+            ", on HTTP URI path: " + config.Path)
 
-        server, err := CreateServer(config.controllerGatePath, config.controllerPort,
+        server, err := CreateServer(config.Path, int16(config.Port),
             /* The below inlines will determine which flags to use based on use input */
             func(useDebug bool) FlagVal {
                 if useDebug == true {
@@ -195,21 +194,21 @@ func TestMainChannel(t *testing.T) {
                 }
 
                 return 0
-            }(config.verbosity)|
+            }(config.Verbosity)|
                 func(useEncryption bool) FlagVal {
                     if useEncryption == true {
                         return FLAG_ENCRYPT
                     }
 
                     return 0
-                }(config.useEncryption)|
+                }(config.Encryption)|
                 func(useCompression bool) FlagVal {
                     if useCompression == true {
                         return FLAG_COMPRESS
                     }
 
                     return 0
-                }(config.useCompression),
+                }(config.Compression),
             incomingClientHandler)
         if err != nil {
             panic(err)
@@ -235,7 +234,7 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
 }
 
 func D(debug string) {
-    if genericConfig.verbosity == true {
+    if genericConfig.Verbosity == true {
         util.DebugOut("[+] " + debug + "\r\n")
     }
 }
