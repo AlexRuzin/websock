@@ -6,5 +6,7 @@
 
   "Port": 2222,
   "Path": "/gate.php",
-  "Domain": "127.0.0.1"
+  "Domain": "127.0.0.1",
+
+  "ModuleName": "websock"
 }
