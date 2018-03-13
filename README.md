@@ -12,7 +12,7 @@ Once the secret key has been generated using the ECDH key exchange, all data wil
 
 
 ## Features
-1. By default, the NIST P-384 curve is used to safely and covertly negotiate a key between the controller and atom (client). Any NIST-compliant curve may be used to strengthen the key exchange challenge. The following NIST keys are supported by the built-in ```crypto/elliptic``` library: NIST P-224, P-256, P-385, and P-521.
+1. By default, the NIST P-384 curve is used to safely and covertly negotiate a key between the controller and atom (client). Any NIST-compliant curve may be used to strengthen the key exchange challenge. The following NIST keys are supported by the built-in ```crypto/elliptic``` library: NIST P-224, P-256, P-384, and P-521.
 2. An ephemeral Initialization Vector (IV) was implemented in the `cryptog.RC4_*` code, so even if the same data is sent, implementing a kind of *perfect forward secrecy*.
 3. The HTTP implementation uses standard headers, including normal a common `User-Agent`, and `Content-Type`, which may be configured.
 4. Key negotiation uses a covert set of key/value pairs in the HTTP POST parameter. The response, as well, is xor-encoded using an ephemeral key.
