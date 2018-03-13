@@ -80,6 +80,78 @@ type NetInstance struct {
     RequestURI              string
 }
 
+func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
+    server *NetChannelService) error) (*NetChannelService, error) {
+
+    /* The FLAG_ENCRYPT switch must always be set to true */
+    if (flags & FLAG_ENCRYPT) == 0 {
+        return nil, util.RetErrStr("FLAG_ENCRYPT must be set")
+    }
+
+    var server = &NetChannelService{
+        IncomingHandler: handler,
+        port: port,
+        Flags: flags,
+        pathGate: pathGate,
+
+        /* Map consists of key: ClientId (string) and value: *NetInstance object */
+        clientMap: make(map[string]*NetInstance),
+        clientIO: make(chan *NetInstance),
+    }
+    clientIO = server.clientIO
+    channelService = server
+
+    go func (svc *NetChannelService) {
+        var wg sync.WaitGroup
+        wg.Add(1)
+
+        for {
+            client, ok := <- svc.clientIO
+            if !ok {
+                break /* Close the processor */
+            }
+
+            svc.clientSync.Lock()
+
+            svc.clientMap[client.ClientIdString] = client
+            if err := svc.IncomingHandler(client, svc); err != nil {
+                svc.CloseClient(client)
+            }
+
+            svc.clientSync.Unlock()
+            client.connected = true
+        }
+    } (server)
+
+    go func(svc *NetChannelService) {
+        /* FIXME -- find a way of closing this thread once CloseService() is invoked */
+        http.HandleFunc(server.pathGate, handleClientRequest)
+
+        svc.sendDebug("Handling request for path :" + svc.pathGate)
+        if err := http.ListenAndServe(":" + util.IntToString(int(server.port)),nil); err != nil {
+            util.ThrowN("panic: Failure in loading httpd.")
+        }
+    } (server)
+
+    return server, nil
+}
+
+func (f *NetChannelService) CloseClient(client *NetInstance) {
+    f.clientSync.Lock()
+    delete(f.clientMap, client.ClientIdString)
+    f.clientSync.Unlock()
+}
+
+func (f *NetChannelService) CloseService() {
+    if clientIO != nil {
+        close(clientIO)
+    }
+}
+
+func (f *NetInstance) Close() {
+    channelService.CloseClient(f)
+}
+
 func (f *NetInstance) Len() int {
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
@@ -112,39 +184,6 @@ func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, 
     }
 
     return
-}
-
-func (f *NetInstance) readInternal(p []byte) (int, error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
-    }
-
-    if f.clientRX.Len() == 0 {
-        return 0, io.EOF
-    }
-
-    f.iOSync.Lock()
-    defer f.iOSync.Unlock()
-
-    data := make([]byte, f.clientRX.Len())
-    f.clientRX.Read(data)
-    f.clientRX.Reset()
-    copy(p, data)
-
-    return len(data), io.EOF
-}
-
-func (f *NetInstance) writeInternal(p []byte) (int, error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
-    }
-
-    f.iOSync.Lock()
-    defer f.iOSync.Unlock()
-
-    f.clientTX.Write(p)
-
-    return len(p), io.EOF
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
@@ -421,6 +460,39 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     return nil
 }
 
+func (f *NetInstance) readInternal(p []byte) (int, error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
+    if f.clientRX.Len() == 0 {
+        return 0, io.EOF
+    }
+
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock()
+
+    data := make([]byte, f.clientRX.Len())
+    f.clientRX.Read(data)
+    f.clientRX.Reset()
+    copy(p, data)
+
+    return len(data), io.EOF
+}
+
+func (f *NetInstance) writeInternal(p []byte) (int, error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock()
+
+    f.clientTX.Write(p)
+
+    return len(p), io.EOF
+}
+
 /* HTTP 500 - Internal Server Error */
 func sendBadErrorCode(writer http.ResponseWriter, err error) {
     writer.WriteHeader(http.StatusInternalServerError)
@@ -442,78 +514,6 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
     fmt.Fprintln(writer, b64Encoded)
 
     return nil
-}
-
-func (f *NetChannelService) CloseClient(client *NetInstance) {
-    f.clientSync.Lock()
-    delete(f.clientMap, client.ClientIdString)
-    f.clientSync.Unlock()
-}
-
-func (f *NetChannelService) CloseService() {
-    if clientIO != nil {
-        close(clientIO)
-    }
-}
-
-func (f *NetInstance) Close() {
-    channelService.CloseClient(f)
-}
-
-func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
-    server *NetChannelService) error) (*NetChannelService, error) {
-
-    /* The FLAG_ENCRYPT switch must always be set to true */
-    if (flags & FLAG_ENCRYPT) == 0 {
-        return nil, util.RetErrStr("FLAG_ENCRYPT must be set")
-    }
-
-    var server = &NetChannelService{
-        IncomingHandler: handler,
-        port: port,
-        Flags: flags,
-        pathGate: pathGate,
-
-        /* Map consists of key: ClientId (string) and value: *NetInstance object */
-        clientMap: make(map[string]*NetInstance),
-        clientIO: make(chan *NetInstance),
-    }
-    clientIO = server.clientIO
-    channelService = server
-
-    go func (svc *NetChannelService) {
-        var wg sync.WaitGroup
-        wg.Add(1)
-
-        for {
-            client, ok := <- svc.clientIO
-            if !ok {
-                break /* Close the processor */
-            }
-
-            svc.clientSync.Lock()
-
-            svc.clientMap[client.ClientIdString] = client
-            if err := svc.IncomingHandler(client, svc); err != nil {
-                svc.CloseClient(client)
-            }
-
-            svc.clientSync.Unlock()
-            client.connected = true
-        }
-    } (server)
-
-    go func(svc *NetChannelService) {
-        /* FIXME -- find a way of closing this thread once CloseService() is invoked */
-        http.HandleFunc(server.pathGate, handleClientRequest)
-
-        svc.sendDebug("Handling request for path :" + svc.pathGate)
-        if err := http.ListenAndServe(":" + util.IntToString(int(server.port)),nil); err != nil {
-            util.ThrowN("panic: Failure in loading httpd.")
-        }
-    } (server)
-
-    return server, nil
 }
 
 func (f *NetChannelService) sendDebug(s string) {
