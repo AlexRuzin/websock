@@ -23,20 +23,22 @@
 package websock
 
 import (
-    "github.com/AlexRuzin/util"
     "time"
+    "bytes"
+    "strings"
+    "crypto"
     "crypto/md5"
     "crypto/rand"
-    "encoding/hex"
-    "bytes"
-    "encoding/gob"
-    "github.com/AlexRuzin/cryptog"
-    "hash/crc64"
-    "strings"
-    "net/http"
-    "github.com/wsddn/go-ecdh"
     "crypto/elliptic"
-    "crypto"
+    "encoding/hex"
+    "encoding/gob"
+    "hash/crc64"
+    "net/http"
+
+    "github.com/wsddn/go-ecdh"
+
+    "github.com/AlexRuzin/cryptog"
+    "github.com/AlexRuzin/util"
 )
 
 func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal, clientId string) (encrypted []byte, err error) {
