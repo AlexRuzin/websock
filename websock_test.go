@@ -28,8 +28,18 @@ import (
     "strconv"
 
     "github.com/AlexRuzin/util"
+    "encoding/json"
+    "io/ioutil"
 )
 
+/*
+ * Configuration file name
+ */
+const JSON_FILENAME                 string = "config.json"
+
+/*
+ * Servertype enumerator
+ */
 type serverType uint8
 const (
     TYPE_NONE                       serverType = iota
@@ -54,9 +64,13 @@ const (
  *   // Connectivity settings for both client and server
  *   "Port": 2222,
  *   "Path": "/gate.php",
- *   "Domain": "127.0.0.1"
+ *   "Domain": "127.0.0.1",
+ *
+ *   // Do not change this setting
+ *   "ModuleName": "websock"
  * }
  */
+const moduleName                    string = "websock"
 type configInput struct {
     /* Default test mode */
     Server                          bool
@@ -69,6 +83,8 @@ type configInput struct {
     Port                            uint16
     Path                            string
     Domain                          string
+
+    ModuleName                      string
 }
 
 var (
@@ -78,51 +94,58 @@ var (
 func TestMainChannel(t *testing.T) {
     /* Parse the user input and create a configInput instance */
     config, _ := func () (*configInput, error) {
-        out := &configInput{
-            controllerAddress:      CONTROLLER_DOMAIN,
-            controllerPort:         CONTROLLER_PORT,
-            controllerGatePath:     CONTROLLER_PATH_GATE,
+        /* Read in the configuration file `config.json` */
 
-            useEncryption:          true,
-            useCompression:         true,
-
-            runningMode:            TYPE_CLIENT,
-
-            verbosity:              true,
+        rawFile, err := ioutil.ReadFile(JSON_FILENAME)
+        if err != nil {
+            panic(err)
         }
 
+        /*
+         * Build the configInput structure
+         */
+        var (
+            output                  configInput
+            parseStatus             error = nil
+        )
+        parseStatus = json.Unmarshal(rawFile, &output)
+        if parseStatus != nil {
+            panic(parseStatus)
+        }
+        if output.ModuleName != moduleName {
+            panic(errors.New("invalid configuration file: " + JSON_FILENAME))
+        }
 
-
-        return out, nil
+        return &output, nil
     } ()
     genericConfig = config
 
     /* It is absolutely required to use encryption, therefore check for this prior to anything futher */
-    if config.useEncryption == false {
+    if config.Encryption == false {
         panic(errors.New("must use the 'encrypt' flag to 'true'"))
     }
 
-    if config.verbosity == true {
+    if config.Verbosity == true {
         func(config *configInput) {
-            switch config.runningMode {
-            case TYPE_CLIENT:
+            switch config.Server {
+            case false: /* Client mode */
                 D("We are running in TYPE_CLIENT mode. Default target server is: " + "http://" +
-                    config.controllerAddress + ":" + util.IntToString(int(config.controllerPort)) +
-                        config.controllerGatePath)
+                    config.Domain + ":" + util.IntToString(int(config.Port)) +
+                        config.Path)
                 break
-            case TYPE_SERVER:
+            case true: /* Server mode */
                 D("We are running in TYPE_SERVER mode. Default listening port is: " +
-                    util.IntToString(int(config.controllerPort)))
-                D("Default listen path is set to: " + config.controllerGatePath)
+                    util.IntToString(int(config.Port)))
+                D("Default listen path is set to: " + config.Path)
             }
 
-            D("Using encryption [forced]: " + strconv.FormatBool(config.useEncryption))
-            D("Using compression [optional]: " + strconv.FormatBool(config.useCompression))
+            D("Using encryption [forced]: " + strconv.FormatBool(config.Encryption))
+            D("Using compression [optional]: " + strconv.FormatBool(config.Compression))
         }(config)
     }
 
-    switch config.runningMode {
-    case TYPE_CLIENT:
+    switch config.Server {
+    case false: /* Client mode */
         var gateURI string = "http://" + config.controllerAddress + ":" +
             util.IntToString(int(config.controllerPort)) + config.controllerGatePath
         D("Client target URI is: " + gateURI)
@@ -160,7 +183,7 @@ func TestMainChannel(t *testing.T) {
         }
 
         break
-    case TYPE_SERVER:
+    case true: /* Server mode */
         D("Server is running on localhost, port: " + util.IntToString(int(config.controllerPort)) +
             ", on HTTP URI path: " + config.controllerGatePath)
 
