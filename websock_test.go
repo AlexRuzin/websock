@@ -24,19 +24,10 @@ package websock
 
 import (
     "testing"
-    "flag"
-    "math"
     "errors"
     "strconv"
 
     "github.com/AlexRuzin/util"
-)
-
-/* Configuration */
-const (
-    CONTROLLER_DOMAIN             string = "127.0.0.1"
-    CONTROLLER_PATH_GATE          string = "/gate.php"
-    CONTROLLER_PORT               int16  = 2222
 )
 
 type serverType uint8
@@ -45,26 +36,44 @@ const (
     TYPE_SERVER                     /* Type is a server */
     TYPE_CLIENT                     /* Type is a client */
 )
+
+/*
+ * For example, the config.json file uses the following key/value structure:
+ *
+ * {
+ *   // true -> server/listener mode, false -> client/connect mode
+ *   "Server": true,
+ *
+ *   // Debug is piped to stdout
+ *   "Verbosity": true,
+ *
+ *   // Encryption/compression settings
+ *   "Encryption": true,
+ *   "Compression": true,
+ *
+ *   // Connectivity settings for both client and server
+ *   "Port": 2222,
+ *   "Path": "/gate.php",
+ *   "Domain": "127.0.0.1"
+ * }
+ */
 type configInput struct {
-    controllerAddress               string
-    controllerPort                  int16
+    /* Default test mode */
+    Server                          bool
 
-    controllerGatePath              string
+    Verbosity                       bool
 
-    /* False -- start client, true -- start server */
-    runningMode                     serverType
+    Encryption                      bool
+    Compression                     bool
 
-    /* Configuration for the server */
-    useEncryption                   bool
-    useCompression                  bool
-
-    /* Generic verbosity -- generic debug output */
-    verbosity                       bool
+    Port                            uint16
+    Path                            string
+    Domain                          string
 }
 
 var (
-    genericConfig   *configInput = nil
-    mainServer      *NetChannelService = nil
+    genericConfig                   *configInput = nil
+    mainServer                      *NetChannelService = nil
 )
 func TestMainChannel(t *testing.T) {
     /* Parse the user input and create a configInput instance */
@@ -79,37 +88,10 @@ func TestMainChannel(t *testing.T) {
 
             runningMode:            TYPE_CLIENT,
 
-            verbosity:              false,
+            verbosity:              true,
         }
 
-        tmp := flag.Int("server-mode", int(TYPE_NONE),
-            "Start the test in server mode, or client mode [must be selected]")
-        if int(*tmp) == 0 {
-            panic(errors.New("invalid setting, please use -h"))
-        }
-        out.runningMode = serverType(*tmp)
-        if out.runningMode == TYPE_CLIENT {
-            /* Client-mode */
-            out.controllerAddress = *flag.String("server-address", out.controllerAddress,
-                "Target server address")
-        }
 
-        out.controllerGatePath = *flag.String("gate-path", out.controllerGatePath,
-            "Default path for the gate, i.e. /path/gate.php")
-
-        tmpPort := flag.Int("port", int(out.controllerPort),
-            "Default service port [1-65536]")
-        out.controllerPort = int16(*tmpPort)
-        if float64(out.controllerPort) >= math.Exp2(float64(16)) {
-            /* Cannot exceed 2^16 */
-            panic(flag.ErrHelp)
-        }
-
-        out.verbosity = *flag.Bool("v", false, "Generic debug verbosity")
-        D("Generic debug verbosity enabled")
-
-        out.useEncryption = *flag.Bool("encrypt", true, "use standard encryption [forced]")
-        out.useCompression = *flag.Bool("compress", true, "use standard compression [optional]")
 
         return out, nil
     } ()
