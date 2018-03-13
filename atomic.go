@@ -32,12 +32,7 @@ import (
     "net/url"
     "net/http"
     "crypto"
-    "crypto/md5"
-    "crypto/rand"
-    "crypto/elliptic"
-    "hash/crc64"
     "io/ioutil"
-    "encoding/hex"
 
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
@@ -109,14 +104,14 @@ type NetChannelClient struct {
 }
 
 type TransferUnit struct {
-    GlobalIP        string
-    LocalIP         string
-    TimeStamp       string
-    ClientID        string
-    Data            []byte
-    DecryptedSum    string
-    Direction       FlagVal
-    Flags           FlagVal
+    GlobalIP            string
+    LocalIP             string
+    TimeStamp           string
+    ClientID            string
+    Data                []byte
+    DecryptedSum        string
+    Direction           FlagVal
+    Flags               FlagVal
 }
 
 func (f *NetChannelClient) Len() int {
@@ -134,9 +129,9 @@ func (f *NetChannelClient) Len() int {
  * NOTE: this function is not implemented
  */
 var (
-    WAIT_TIMEOUT_REACHED = util.RetErrStr("timeout reached")
-    WAIT_DATA_RECEIVED = util.RetErrStr("data received")
-    WAIT_CLOSED = util.RetErrStr("socket closed")
+    WAIT_TIMEOUT_REACHED    = util.RetErrStr("timeout reached")
+    WAIT_DATA_RECEIVED      = util.RetErrStr("data received")
+    WAIT_CLOSED             = util.RetErrStr("socket closed")
 )
 func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
     if f.connected == false {
@@ -163,56 +158,6 @@ func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen 
     }
 
     return
-}
-
-func (f *NetChannelClient) readInternal(p []byte) (int, error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
-    }
-
-    if f.Len() == 0 {
-        return 0, io.EOF
-    }
-
-    read, err := f.readStream(p, 0)
-    if err != io.EOF {
-        return 0, err
-    }
-
-    return read, io.EOF
-}
-
-func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
-    }
-
-    if f.transport != nil {
-        f.cancelled = true
-        f.transport.CancelRequest(f.request)
-    }
-
-    if (f.flags & FLAG_COMPRESS) > 0 {
-        rawData, err := util.CompressStream(p)
-        if err != nil {
-            return 0, err
-        }
-
-        _, _, err = f.writeStream(rawData, 0)
-        if err != nil {
-            return 0, err
-        }
-
-        return len(p), io.EOF
-    }
-
-    /* No compression */
-    _, wrote, err := f.writeStream(p, 0)
-    if err != nil {
-        return 0, err
-    }
-
-    return wrote, io.EOF
 }
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
@@ -274,69 +219,6 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
     return ioChannel, nil
 }
 
-func (f *NetChannelClient) generateCurvePostRequest() (
-    ec ecdh.ECDH,
-    req map[string]string,
-    privateKey crypto.PrivateKey,
-    genStatus error) {
-
-    genStatus = nil
-
-    /*
-     * Generate the ECDH keys based on the EllipticP384 Curve/create keypair
-     */
-    var publicKey crypto.PublicKey
-    curve := ecdh.NewEllipticECDH(elliptic.P384())
-    var keypairStatus error = nil
-    privateKey, publicKey, keypairStatus = curve.GenerateKey(rand.Reader)
-    if keypairStatus != nil {
-        return nil, nil, nil, keypairStatus
-    }
-    var pubKeyMarshalled = curve.Marshal(publicKey)
-
-    /*
-     * Generate the b64([xor][marshalled][md5sum]) buffer
-     */
-    postPool, err := f.genTxPool(pubKeyMarshalled)
-    if err != nil || len(postPool) < 1 {
-        return nil, nil, nil, err
-    }
-
-    /* generate fake key/value pools */
-    outMap := make(map[string]string)
-    numOfParameters := util.RandInt(3, POST_BODY_JUNK_MAX_PARAMETERS)
-
-    magicNumber := numOfParameters / 2
-    for i := numOfParameters; i != 0; i -= 1 {
-        var pool, key string
-        if POST_BODY_VALUE_LEN != -1 {
-            pool = encodeKeyValue(POST_BODY_VALUE_LEN)
-        } else {
-            pool = encodeKeyValue(len(string(postPool)) * 2)
-        }
-        key = encodeKeyValue(POST_BODY_KEY_LEN)
-
-        /* This value must not be any of the b64 encoded POST_BODY_KEY_CHARSET values -- true == collision */
-        if collision := f.checkForKeyCollision(key, POST_BODY_KEY_CHARSET); collision == true {
-            i += 1 /* Fix the index */
-            continue
-        }
-
-        if i == magicNumber {
-            parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
-            outMap[util.B64E([]byte(parameter))] = string(postPool)
-            continue
-        }
-
-        outMap[key] = pool
-    }
-
-    ec          = curve
-    req         = outMap
-    genStatus   = nil
-    return
-}
-
 func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Generate keypair, construct HTTP POST request parameter map
@@ -358,50 +240,17 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return txErr
     }
 
-    decoded, err := util.B64D(string(body))
-    if err != nil {
-        return err
+    /*
+     * Decode the public key returned by the server and create a secret key
+     */
+    var (
+        secret                  []byte
+        genStatus               error = nil
+    )
+    f.secret, genStatus = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve)
+    if genStatus != nil {
+        return genStatus
     }
-
-    var responsePool = bytes.Buffer{}
-    responsePool.Write(decoded)
-
-    var xorKey = make([]byte, crc64.Size)
-    var xordMarshaled = make([]byte, len(decoded) - crc64.Size - md5.Size)
-    var clientId = make([]byte, md5.Size)
-
-    responsePool.Read(xorKey)
-    responsePool.Read(xordMarshaled)
-    marshalled := func (xorKey []byte, encoded []byte) []byte {
-        output := make([]byte, len(encoded))
-        copy(output, encoded)
-        counter := 0
-        for k := range output {
-            if counter == len(xorKey) {
-                counter = 0
-            }
-
-            output[k] ^= xorKey[counter]
-            counter += 1
-        }
-        return output
-    } (xorKey, xordMarshaled)
-    responsePool.Read(clientId)
-
-    f.clientId = clientId
-    f.clientIdString = hex.EncodeToString(f.clientId)
-
-    serverPubKey, ok := curve.Unmarshal(marshalled)
-    if !ok {
-        return util.RetErrStr("Failed to unmarshal server-side public key")
-    }
-
-    /* Generate the secret finally */
-    secret, err := curve.GenerateSharedSecret(clientPrivateKey, serverPubKey)
-    if err != nil || len(secret) == 0 {
-        return err
-    }
-    f.secret = secret
 
     if (f.flags & FLAG_DEBUG) > 1 {
         util.DebugOut("Client-side secret:")
@@ -418,7 +267,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
     /*
      * Periodically check to see if the server has any data to be sent to the
-     *  socket.
+     *  socket. This is the primary i/o subsystem
      */
     go func (client *NetChannelClient) {
         for {
@@ -448,6 +297,56 @@ func (f *NetChannelClient) InitializeCircuit() error {
 func (f *NetChannelClient) Close() {
     f.connected = false
     f.writeStream(nil, FLAG_TERMINATE_CONNECTION)
+}
+
+func (f *NetChannelClient) readInternal(p []byte) (int, error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
+    if f.Len() == 0 {
+        return 0, io.EOF
+    }
+
+    read, err := f.readStream(p, 0)
+    if err != io.EOF {
+        return 0, err
+    }
+
+    return read, io.EOF
+}
+
+func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
+    if f.transport != nil {
+        f.cancelled = true
+        f.transport.CancelRequest(f.request)
+    }
+
+    if (f.flags & FLAG_COMPRESS) > 0 {
+        rawData, err := util.CompressStream(p)
+        if err != nil {
+            return 0, err
+        }
+
+        _, _, err = f.writeStream(rawData, 0)
+        if err != nil {
+            return 0, err
+        }
+
+        return len(p), io.EOF
+    }
+
+    /* No compression */
+    _, wrote, err := f.writeStream(p, 0)
+    if err != nil {
+        return 0, err
+    }
+
+    return wrote, io.EOF
 }
 
 func (f *NetChannelClient) testCircuit() error {

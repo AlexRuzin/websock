@@ -34,6 +34,9 @@ import (
     "hash/crc64"
     "strings"
     "net/http"
+    "github.com/wsddn/go-ecdh"
+    "crypto/elliptic"
+    "crypto"
 )
 
 func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal, clientId string) (encrypted []byte, err error) {
@@ -171,6 +174,120 @@ func getClientPublicKey(buffer string) (marshalledPublicKey []byte, err error) {
     } (xorKey, marshalXor)
 
     return marshalled, nil
+}
+
+func (f *NetChannelClient) decodeServerPubkeyGenSecret(publicKeyRaw []byte, privateKey crypto.PrivateKey, curve ecdh.ECDH) (
+    secret []byte, err error) {
+
+    decoded, err := util.B64D(string(publicKeyRaw))
+    if err != nil {
+        return nil, err
+    }
+
+    var responsePool = bytes.Buffer{}
+    responsePool.Write(decoded)
+
+    var xorKey = make([]byte, crc64.Size)
+    var xordMarshaled = make([]byte, len(decoded) - crc64.Size - md5.Size)
+    var clientId = make([]byte, md5.Size)
+
+    responsePool.Read(xorKey)
+    responsePool.Read(xordMarshaled)
+    marshalled := func (xorKey []byte, encoded []byte) []byte {
+        output := make([]byte, len(encoded))
+        copy(output, encoded)
+        counter := 0
+        for k := range output {
+            if counter == len(xorKey) {
+                counter = 0
+            }
+
+            output[k] ^= xorKey[counter]
+            counter += 1
+        }
+        return output
+    } (xorKey, xordMarshaled)
+    responsePool.Read(clientId)
+
+    f.clientId = clientId
+    f.clientIdString = hex.EncodeToString(f.clientId)
+
+    serverPubKey, ok := curve.Unmarshal(marshalled)
+    if !ok {
+        return nil, util.RetErrStr("Failed to unmarshal server-side public key")
+    }
+
+    /* Generate the secret finally */
+    var secretGenStatus error = nil
+    secret, secretGenStatus = curve.GenerateSharedSecret(privateKey, serverPubKey)
+    if err != secretGenStatus || len(secret) == 0 {
+        return nil, secretGenStatus
+    }
+
+    return secret, nil
+}
+
+func (f *NetChannelClient) generateCurvePostRequest() (
+    ec ecdh.ECDH,
+    req map[string]string,
+    privateKey crypto.PrivateKey,
+    genStatus error) {
+
+    genStatus = nil
+
+    /*
+     * Generate the ECDH keys based on the EllipticP384 Curve/create keypair
+     */
+    var publicKey crypto.PublicKey
+    curve := ecdh.NewEllipticECDH(elliptic.P384())
+    var keypairStatus error = nil
+    privateKey, publicKey, keypairStatus = curve.GenerateKey(rand.Reader)
+    if keypairStatus != nil {
+        return nil, nil, nil, keypairStatus
+    }
+    var pubKeyMarshalled = curve.Marshal(publicKey)
+
+    /*
+     * Generate the b64([xor][marshalled][md5sum]) buffer
+     */
+    postPool, err := f.genTxPool(pubKeyMarshalled)
+    if err != nil || len(postPool) < 1 {
+        return nil, nil, nil, err
+    }
+
+    /* generate fake key/value pools */
+    outMap := make(map[string]string)
+    numOfParameters := util.RandInt(3, POST_BODY_JUNK_MAX_PARAMETERS)
+
+    magicNumber := numOfParameters / 2
+    for i := numOfParameters; i != 0; i -= 1 {
+        var pool, key string
+        if POST_BODY_VALUE_LEN != -1 {
+            pool = encodeKeyValue(POST_BODY_VALUE_LEN)
+        } else {
+            pool = encodeKeyValue(len(string(postPool)) * 2)
+        }
+        key = encodeKeyValue(POST_BODY_KEY_LEN)
+
+        /* This value must not be any of the b64 encoded POST_BODY_KEY_CHARSET values -- true == collision */
+        if collision := f.checkForKeyCollision(key, POST_BODY_KEY_CHARSET); collision == true {
+            i += 1 /* Fix the index */
+            continue
+        }
+
+        if i == magicNumber {
+            parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
+            outMap[util.B64E([]byte(parameter))] = string(postPool)
+            continue
+        }
+
+        outMap[key] = pool
+    }
+
+    ec          = curve
+    req         = outMap
+    genStatus   = nil
+    return
 }
 
 func decryptData(b64Encoded string, secret []byte) (clientId string, rawData []byte, txUnit *TransferUnit, status error) {
