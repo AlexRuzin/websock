@@ -143,6 +143,7 @@ func TestMainChannel(t *testing.T) {
             D("Using compression [optional]: " + strconv.FormatBool(config.Compression))
         }(config)
     }
+    D("Configuration file " + JSON_FILENAME + " is nominal, proceeding...")
 
     switch config.Server {
     case false: /* Client mode */
