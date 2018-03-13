@@ -31,10 +31,11 @@ import (
     "time"
     "net/url"
     "net/http"
-    "crypto/elliptic"
-    "hash/crc64"
+    "crypto"
     "crypto/md5"
     "crypto/rand"
+    "crypto/elliptic"
+    "hash/crc64"
     "io/ioutil"
     "encoding/hex"
 
@@ -273,27 +274,36 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
     return ioChannel, nil
 }
 
-func (f *NetChannelClient) InitializeCircuit() error {
+func (f *NetChannelClient) generateCurvePostRequest() (
+    ec ecdh.ECDH,
+    req map[string]string,
+    privateKey crypto.PrivateKey,
+    genStatus error) {
+
+    genStatus = nil
+
     /*
      * Generate the ECDH keys based on the EllipticP384 Curve/create keypair
      */
+    var publicKey crypto.PublicKey
     curve := ecdh.NewEllipticECDH(elliptic.P384())
-    clientPrivateKey, clientPublicKey, err := curve.GenerateKey(rand.Reader)
-    if err != nil {
-        return err
+    var keypairStatus error = nil
+    privateKey, publicKey, keypairStatus = curve.GenerateKey(rand.Reader)
+    if keypairStatus != nil {
+        return nil, nil, nil, keypairStatus
     }
-    var pubKeyMarshalled = curve.Marshal(clientPublicKey)
+    var pubKeyMarshalled = curve.Marshal(publicKey)
 
     /*
      * Generate the b64([xor][marshalled][md5sum]) buffer
      */
     postPool, err := f.genTxPool(pubKeyMarshalled)
     if err != nil || len(postPool) < 1 {
-        return err
+        return nil, nil, nil, err
     }
 
     /* generate fake key/value pools */
-    var parmMap = make(map[string]string)
+    outMap := make(map[string]string)
     numOfParameters := util.RandInt(3, POST_BODY_JUNK_MAX_PARAMETERS)
 
     magicNumber := numOfParameters / 2
@@ -314,43 +324,64 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
         if i == magicNumber {
             parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
-            parmMap[util.B64E([]byte(parameter))] = string(postPool)
+            outMap[util.B64E([]byte(parameter))] = string(postPool)
             continue
         }
 
-        parmMap[key] = pool
+        outMap[key] = pool
     }
 
-    /* Perform HTTP TX */
-    body, txErr := sendTransmission(HTTP_VERB /* POST */, f.inputURI, parmMap, f)
+    ec          = curve
+    req         = outMap
+    genStatus   = nil
+    return
+}
+
+func (f *NetChannelClient) InitializeCircuit() error {
+    /*
+     * Generate keypair, construct HTTP POST request parameter map
+     */
+    var ( /* Output reserved for keypair/post request generate method */
+        curve                   ecdh.ECDH
+        request                 map[string]string
+        initStatus              error = nil
+        clientPrivateKey        crypto.PrivateKey
+    )
+    curve, request, clientPrivateKey, initStatus = f.generateCurvePostRequest()
+    if initStatus != nil {
+        return initStatus
+    }
+
+    /* Perform HTTP TX, receive the public key from the server */
+    body, txErr := sendTransmission(HTTP_VERB /* POST */, f.inputURI, request, f)
     if txErr != nil && txErr != io.EOF {
         return txErr
     }
 
-    encoded, err := util.B64D(string(body))
+    decoded, err := util.B64D(string(body))
     if err != nil {
         return err
     }
 
     var responsePool = bytes.Buffer{}
-    responsePool.Write(encoded)
+    responsePool.Write(decoded)
 
     var xorKey = make([]byte, crc64.Size)
-    var xordMarshaled = make([]byte, len(encoded) - crc64.Size - md5.Size)
+    var xordMarshaled = make([]byte, len(decoded) - crc64.Size - md5.Size)
     var clientId = make([]byte, md5.Size)
 
     responsePool.Read(xorKey)
     responsePool.Read(xordMarshaled)
-    marshalled := func (xor_key []byte, encoded []byte) []byte {
+    marshalled := func (xorKey []byte, encoded []byte) []byte {
         output := make([]byte, len(encoded))
         copy(output, encoded)
         counter := 0
         for k := range output {
-            if counter == len(xor_key) {
+            if counter == len(xorKey) {
                 counter = 0
             }
 
-            output[k] ^= xor_key[counter]
+            output[k] ^= xorKey[counter]
             counter += 1
         }
         return output
