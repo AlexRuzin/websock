@@ -183,6 +183,11 @@ func TestMainChannel(t *testing.T) {
             panic(err)
         }
 
+        /* Wait 5 seconds before transmitting */
+        util.SleepSeconds(5)
+        var randData = util.RandomString(32)
+        client.Write([]byte(randData))
+
         break
     case true: /* Server mode */
         D("Server is running on localhost, port: " + util.IntToString(int(config.Port)) +
@@ -232,12 +237,11 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
         fmt.Printf("Wrote data to client " + client.ClientIdString)
     }
 
-    util.WaitForever()
-
-    util.SleepSeconds(25)
+    util.SleepSeconds(10)
     if client.Len() != 0 {
         data := make([]byte, client.Len())
         client.Read(data)
+        D("Data incoming from client: ")
         util.DebugOut(string(data))
     }
     return nil
