@@ -30,6 +30,7 @@ import (
     "io/ioutil"
 
     "github.com/AlexRuzin/util"
+    "time"
 )
 
 /*
@@ -124,6 +125,7 @@ type configInput struct {
 var (
     genericConfig                   *configInput = nil
     mainServer                      *NetChannelService = nil
+    mainClient                      *NetChannelClient = nil
 )
 func TestMainChannel(t *testing.T) {
     /* Parse the user input and create a configInput instance */
@@ -216,6 +218,7 @@ func TestMainChannel(t *testing.T) {
             panic(err)
         }
 
+        mainClient = client
         clientTX(*genericConfig)
 
         break
@@ -251,6 +254,7 @@ func TestMainChannel(t *testing.T) {
             panic(err)
         }
         mainServer = server
+        serverTX(*genericConfig)
     }
 
     /* Wait forever */
@@ -266,11 +270,71 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
 }
 
 func clientTX(config configInput) {
+    var transmitStatus error = nil
+    for {
+        if config.ClientTXTimeMin == config.ClientTXTimeMax {
+            util.Sleep(time.Duration(config.ClientTXTimeMin) * time.Millisecond)
+        } else {
+            /* Transmit within a random time range */
+            util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin), int(config.ClientTXDataMax))) * time.Millisecond)
+        }
 
+        transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax, handlerClientTx)
+        if transmitStatus != nil {
+            panic(transmitStatus)
+        }
+    }
 }
 
 func serverTX(config configInput) {
+    var transmitStatus error = nil
+    for {
+        if config.ServerTXTimeMin == config.ServerTXTimeMax {
+            util.Sleep(time.Duration(config.ServerTXTimeMin) * time.Millisecond)
+        } else {
+            /* Transmit within a random time range */
+            util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin), int(config.ServerTXTimeMax))) * time.Millisecond)
+        }
 
+        transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax, handlerServerTx)
+        if transmitStatus != nil {
+            panic(transmitStatus)
+        }
+    }
+}
+
+func transmitRawData(minLen uint, maxLen uint, handler func(p []byte) error) error {
+
+}
+
+func handlerClientTx(p []byte) error {
+    txLen, err := mainClient.Write(p)
+    if err != nil {
+        return err
+    }
+
+    if txLen != len(p) {
+        return util.RetErrStr("handlerClientTx() reports unexpected EOF in write stream")
+    }
+
+    return nil
+}
+
+func handlerServerTx(p []byte) error {
+    /* Write to all clients */
+    for _, v := range mainServer.clientMap {
+        D("transmitting data to client: " + v.ClientIdString)
+        txLen, err := v.Write(p)
+        if err != nil {
+            return err
+        }
+
+        if txLen != len(p) {
+            return util.RetErrStr("handlerServerTx() reports unexpected EOF in write stream")
+        }
+    }
+
+    return nil
 }
 
 func D(debug string) {
