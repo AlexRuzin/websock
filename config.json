@@ -1,11 +1,11 @@
 {
-  "Server": false,
+  "Server": true,
   "Verbosity": true,
   "Encryption": true,
-  "Compression": false,
+  "Compression": true,
 
-  "Port": 2222,
-  "Path": "/gate.php",
+  "Port": 80,
+  "Path": "/websock.php",
   "Domain": "127.0.0.1",
 
   "ClientTX": true,
