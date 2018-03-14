@@ -30,6 +30,7 @@ import (
     "github.com/AlexRuzin/util"
     "encoding/json"
     "io/ioutil"
+    "fmt"
 )
 
 /*
@@ -224,6 +225,10 @@ func TestMainChannel(t *testing.T) {
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     util.SleepSeconds(14)
     client.Write([]byte("some random data"))
+
+    if genericConfig.Verbosity == true {
+        fmt.Printf("inbound client from ID: " + client.ClientIdString)
+    }
 
     util.SleepSeconds(25)
     if client.Len() != 0 {
