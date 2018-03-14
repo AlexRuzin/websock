@@ -221,7 +221,9 @@ func TestMainChannel(t *testing.T) {
         }
 
         mainClient = client
-        clientTX(*genericConfig)
+        if genericConfig.ClientTX == true {
+            clientTX(*genericConfig)
+        }
 
         break
     case true: /* Server mode */
@@ -256,7 +258,10 @@ func TestMainChannel(t *testing.T) {
             panic(err)
         }
         mainServer = server
-        serverTX(*genericConfig)
+
+        if genericConfig.ServerTX == true {
+            serverTX(*genericConfig)
+        }
     }
 
     /* Wait forever */
