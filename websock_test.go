@@ -31,6 +31,7 @@ import (
 
     "github.com/AlexRuzin/util"
     "time"
+    "io"
 )
 
 /*
@@ -323,6 +324,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 
     if staticData == true {
         rawData = make([]byte, 1)
+        rawData[0] = 'A'
         for c := 0; c != rawLength; c += 1 {
             rawData = append(rawData, 'A')
         }
@@ -332,7 +334,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 
     /* Invoke the transmit method */
     var txStatus = handler(rawData)
-    if txStatus != nil {
+    if txStatus != io.EOF {
         return txStatus
     }
 
@@ -341,7 +343,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 
 func handlerClientTx(p []byte) error {
     txLen, err := mainClient.Write(p)
-    if err != nil {
+    if err != io.EOF {
         return err
     }
 
@@ -357,7 +359,7 @@ func handlerServerTx(p []byte) error {
     for _, v := range mainServer.clientMap {
         D("transmitting data to client: " + v.ClientIdString)
         txLen, err := v.Write(p)
-        if err != nil {
+        if err != io.EOF {
             return err
         }
 
