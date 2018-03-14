@@ -308,8 +308,30 @@ func serverTX(config configInput) {
 }
 
 func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p []byte) error) error {
+    var (
+        rawLength           int
+        rawData             []byte
+    )
+    if minLen == maxLen {
+        rawLength = int(minLen)
+    } else {
+        rawLength = util.RandInt(int(minLen), int(maxLen))
+    }
 
+    if staticData == true {
+        rawData = make([]byte, 1)
+        for c := 0; c != rawLength; c += 1 {
+            rawData = append(rawData, 'A')
+        }
+    } else {
+        rawData = []byte(util.RandomString(rawLength))
+    }
 
+    /* Invoke the transmit method */
+    var txStatus = handler(rawData)
+    if txStatus != nil {
+        return txStatus
+    }
 
     return nil
 }
