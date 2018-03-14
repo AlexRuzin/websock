@@ -243,10 +243,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Decode the public key returned by the server and create a secret key
      */
-    var (
-        secret                  []byte
-        genStatus               error = nil
-    )
+    var genStatus               error = nil
     f.secret, genStatus = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve)
     if genStatus != nil {
         return genStatus
@@ -254,7 +251,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
     if (f.flags & FLAG_DEBUG) > 1 {
         util.DebugOut("Client-side secret:")
-        util.DebugOutHex(secret)
+        util.DebugOutHex(f.secret)
     }
 
     /*
