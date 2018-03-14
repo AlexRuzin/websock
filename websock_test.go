@@ -26,18 +26,20 @@ import (
     "testing"
     "errors"
     "strconv"
+    "time"
+    "io"
     "encoding/json"
     "io/ioutil"
 
     "github.com/AlexRuzin/util"
-    "time"
-    "io"
 )
 
 /*
  * Configuration file name
  */
 const JSON_FILENAME                 string = "config.json"
+
+const DEFAULT_RX_WAIT_DURATION      time.Duration = 5000 /* milliseconds */
 
 /*
  * For example, the config.json file uses the following key/value structure:
@@ -222,9 +224,7 @@ func TestMainChannel(t *testing.T) {
         }
 
         mainClient = client
-        if genericConfig.ClientTX == true {
-            clientTX(*genericConfig)
-        }
+        clientTX(*genericConfig)
 
         break
     case true: /* Server mode */
@@ -268,47 +268,73 @@ func TestMainChannel(t *testing.T) {
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     D("Initial connect from client " + client.ClientIdString)
 
-    if genericConfig.ServerTX == true {
-        serverTX(*genericConfig)
-    }
+    serverTX(*genericConfig)
 
     return nil
 }
 
 func clientTX(config configInput) {
-    var transmitStatus error = nil
-    for {
-        if config.ClientTXTimeMin == config.ClientTXTimeMax {
-            util.Sleep(time.Duration(config.ClientTXTimeMin) * time.Millisecond)
-        } else {
-            /* Transmit within a random time range */
-            util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin), int(config.ClientTXDataMax))) * time.Millisecond)
-        }
+    /*
+     * Transmit data
+     */
+    if config.ClientTX == true {
+        go func (config configInput) {
+            var transmitStatus error = nil
+            for {
+                if config.ClientTXTimeMin == config.ClientTXTimeMax {
+                    util.Sleep(time.Duration(config.ClientTXTimeMin) * time.Millisecond)
+                } else {
+                    /* Transmit within a random time range */
+                    util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin), int(config.ClientTXDataMax))) * time.Millisecond)
+                }
 
-        transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
-            config.ClientTXDataStatic, handlerClientTx)
-        if transmitStatus != nil {
-            panic(transmitStatus)
-        }
+                transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
+                    config.ClientTXDataStatic, handlerClientTx)
+                if transmitStatus != nil {
+                    panic(transmitStatus)
+                }
+            }
+        } (config)
     }
+
+    /* Receive data */
+    go func (config configInput) {
+        for {
+            if len, rxStatus := mainClient.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
+                rawData := make([]byte, len)
+                mainClient.Read(rawData)
+                D("inbound data from server (" + util.IntToString(len) + " bytes): " + string(rawData))
+            }
+        }
+    } (config)
 }
 
 func serverTX(config configInput) {
-    var transmitStatus error = nil
-    for {
-        if config.ServerTXTimeMin == config.ServerTXTimeMax {
-            util.Sleep(time.Duration(config.ServerTXTimeMin) * time.Millisecond)
-        } else {
-            /* Transmit within a random time range */
-            util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin), int(config.ServerTXTimeMax))) * time.Millisecond)
-        }
+    /* Transmit data periodically */
+    if config.ServerTX == true {
+        go func (config configInput) {
+            var transmitStatus error = nil
+            for {
+                if config.ServerTXTimeMin == config.ServerTXTimeMax {
+                    util.Sleep(time.Duration(config.ServerTXTimeMin) * time.Millisecond)
+                } else {
+                    /* Transmit within a random time range */
+                    util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin), int(config.ServerTXTimeMax))) * time.Millisecond)
+                }
 
-        transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
-            config.ServerTXDataStatic, handlerServerTx)
-        if transmitStatus != nil {
-            panic(transmitStatus)
-        }
+                transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
+                    config.ServerTXDataStatic, handlerServerTx)
+                if transmitStatus != nil {
+                    panic(transmitStatus)
+                }
+            }
+        } (config)
     }
+
+    /* Receive data */
+    go func (config configInput) {
+
+    } (config)
 }
 
 func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p []byte) error) error {
