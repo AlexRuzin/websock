@@ -258,10 +258,6 @@ func TestMainChannel(t *testing.T) {
             panic(err)
         }
         mainServer = server
-
-        if genericConfig.ServerTX == true {
-            serverTX(*genericConfig)
-        }
     }
 
     /* Wait forever */
@@ -271,7 +267,9 @@ func TestMainChannel(t *testing.T) {
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     D("Initial connect from client " + client.ClientIdString)
 
-    serverTX(*genericConfig)
+    if genericConfig.ServerTX == true {
+        serverTX(*genericConfig)
+    }
 
     return nil
 }
