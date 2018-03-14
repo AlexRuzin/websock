@@ -192,7 +192,7 @@ func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, 
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
     read, err = f.readInternal(p)
-    if err != nil {
+    if err != io.EOF {
         return 0, err
     }
 
@@ -201,7 +201,7 @@ func (f *NetInstance) Read(p []byte) (read int, err error) {
 
 func (f *NetInstance) Write(p []byte) (wrote int, err error) {
     wrote, err = f.writeInternal(p)
-    if err != nil {
+    if err != io.EOF {
         return 0, err
     }
 
