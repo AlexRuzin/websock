@@ -26,27 +26,16 @@ import (
     "testing"
     "errors"
     "strconv"
-
-    "github.com/AlexRuzin/util"
     "encoding/json"
     "io/ioutil"
-    "fmt"
+
+    "github.com/AlexRuzin/util"
 )
 
 /*
  * Configuration file name
  */
 const JSON_FILENAME                 string = "config.json"
-
-/*
- * Servertype enumerator
- */
-type serverType uint8
-const (
-    TYPE_NONE                       serverType = iota
-    TYPE_SERVER                     /* Type is a server */
-    TYPE_CLIENT                     /* Type is a client */
-)
 
 /*
  * For example, the config.json file uses the following key/value structure:
@@ -63,17 +52,17 @@ const (
  *   "Compression": true,
  *
  *   // Connectivity settings for both client and server
- *   "Port": 2222,
- *   "Path": "/gate.php",
+ *   "Port": 80,
+ *   "Path": "/websock.php",
  *   "Domain": "127.0.0.1",
  *
  *   // If set to true the client will transmit data
  *   "ClientTX": true,
  *
- *   // Data is transmitted between these intervals (seconds)
+ *   // Data is transmitted between these intervals (milliseconds)
  *   //  i.e every 2 seconds transmit.
- *   "ClientTXTimeMin": 2,
- *   "ClientTXTimeMax": 2,
+ *   "ClientTXTimeMin": 2000,
+ *   "ClientTXTimeMax": 2000,
  *
  *   // Transmit data in length between the below intervals (bytes)
  *   //  All data is sent are ASCII capitals between 0x41 - 0x5a
@@ -88,8 +77,8 @@ const (
  *   //  All other settings below follow the above client convention
  *   "ServerTX": true,
  *
- *   "ServerTXTimeMin": 2,
- *   "ServerTXTimeMax": 2,
+ *   "ServerTXTimeMin": 2000,
+ *   "ServerTXTimeMax": 2000,
  *
  *   "ServerTXDataMin": 16,
  *   "ServerTXDataMax": 64,
@@ -100,7 +89,7 @@ const (
  *   "ModuleName": "websock"
  * }
  */
-const moduleName                    string = "websock"
+const moduleName                    string = "websock" /* Do not change this setting */
 type configInput struct {
     /* Default test mode */
     Server                          bool
@@ -114,6 +103,21 @@ type configInput struct {
     Path                            string
     Domain                          string
 
+    /* Transmission from client configuration */
+    ClientTX                        bool
+    ClientTXTimeMin                 uint64
+    ClientTXTimeMax                 uint64
+    ClientTXDataMin                 uint
+    ClientTXDataMax                 uint
+
+    /* Transmission from server configuration */
+    ServerTX                        bool
+    ServerTXTimeMin                 uint64
+    ServerTXTimeMax                 uint64
+    ServerTXDataMin                 uint
+    ServerTXDataMax                 uint
+
+    /* This value must be static "websock" */
     ModuleName                      string
 }
 
@@ -212,10 +216,7 @@ func TestMainChannel(t *testing.T) {
             panic(err)
         }
 
-        /* Wait 5 seconds before transmitting */
-        util.SleepSeconds(5)
-        var randData = util.RandomString(32)
-        client.Write([]byte(randData))
+        clientTX(*genericConfig)
 
         break
     case true: /* Server mode */
@@ -259,32 +260,22 @@ func TestMainChannel(t *testing.T) {
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     D("Initial connect from client " + client.ClientIdString)
 
-    util.SleepSeconds(14)
-    client.Write([]byte("some random data"))
+    serverTX(*genericConfig)
 
-    if len, _ := client.Wait(60); len > 0 {
-        readData := make([]byte, len)
-        client.Read(readData)
-        D("Client wrote to controller: " + string(readData))
-    }
-
-    if genericConfig.Verbosity == true {
-        fmt.Printf("Wrote data to client " + client.ClientIdString)
-    }
-
-    util.SleepSeconds(10)
-    if client.Len() != 0 {
-        data := make([]byte, client.Len())
-        client.Read(data)
-        D("Data incoming from client: ")
-        util.DebugOut(string(data))
-    }
     return nil
+}
+
+func clientTX(config configInput) {
+
+}
+
+func serverTX(config configInput) {
+
 }
 
 func D(debug string) {
     if genericConfig.Verbosity == true {
-        util.DebugOut("[+] " + debug + "\r\n")
+        util.DebugOut("[+] " + debug)
     }
 }
 
