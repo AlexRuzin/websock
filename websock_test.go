@@ -233,6 +233,12 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
     util.SleepSeconds(14)
     client.Write([]byte("some random data"))
 
+    if len, _ := client.Wait(60); len > 0 {
+        readData := make([]byte, len)
+        client.Read(readData)
+        D("Client wrote to controller: " + string(readData))
+    }
+
     if genericConfig.Verbosity == true {
         fmt.Printf("Wrote data to client " + client.ClientIdString)
     }
