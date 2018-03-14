@@ -223,12 +223,16 @@ func TestMainChannel(t *testing.T) {
 }
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
+    D("Initial connect from client " + client.ClientIdString)
+
     util.SleepSeconds(14)
     client.Write([]byte("some random data"))
 
     if genericConfig.Verbosity == true {
-        fmt.Printf("inbound client from ID: " + client.ClientIdString)
+        fmt.Printf("Wrote data to client " + client.ClientIdString)
     }
+
+    util.WaitForever()
 
     util.SleepSeconds(25)
     if client.Len() != 0 {
