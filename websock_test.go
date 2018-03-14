@@ -110,6 +110,7 @@ type configInput struct {
     ClientTXTimeMax                 uint64
     ClientTXDataMin                 uint
     ClientTXDataMax                 uint
+    ClientTXDataStatic              bool
 
     /* Transmission from server configuration */
     ServerTX                        bool
@@ -117,6 +118,7 @@ type configInput struct {
     ServerTXTimeMax                 uint64
     ServerTXDataMin                 uint
     ServerTXDataMax                 uint
+    ServerTXDataStatic              bool
 
     /* This value must be static "websock" */
     ModuleName                      string
@@ -279,7 +281,8 @@ func clientTX(config configInput) {
             util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin), int(config.ClientTXDataMax))) * time.Millisecond)
         }
 
-        transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax, handlerClientTx)
+        transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
+            config.ClientTXDataStatic, handlerClientTx)
         if transmitStatus != nil {
             panic(transmitStatus)
         }
@@ -296,15 +299,19 @@ func serverTX(config configInput) {
             util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin), int(config.ServerTXTimeMax))) * time.Millisecond)
         }
 
-        transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax, handlerServerTx)
+        transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
+            config.ServerTXDataStatic, handlerServerTx)
         if transmitStatus != nil {
             panic(transmitStatus)
         }
     }
 }
 
-func transmitRawData(minLen uint, maxLen uint, handler func(p []byte) error) error {
+func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p []byte) error) error {
 
+
+
+    return nil
 }
 
 func handlerClientTx(p []byte) error {
