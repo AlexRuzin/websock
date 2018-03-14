@@ -133,7 +133,7 @@ Reading from the client stream requires a check for data in the stream first, us
 ```go
 func (f *NetInstance) Len() int {
     /* Return the length, if any */
-}
+}  
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
     /* Once all data is read, the io.EOF code is returned */
@@ -161,7 +161,7 @@ if err != nil || client == nil {
 Next, the client must connect to the server by invoking the `NetChannelClient.InitializeCircuit()` method.
 
 ```go
-package websock
+package websock  
 
 if err := client.InitializeCircuit(); err != nil {
     D(err.Error())
@@ -224,6 +224,82 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error)
 ## Protocol Configuration
 
 All configuration to the protocol is done by editing the `protocol_config.go` file, which will contain instructions on each configurable variable.
+
+## Testing ```websock``` Using the `Testing` Package
+The `websock_test.go`, which uses golang's default `Testing` package, makes use of the `config.json` file to send test data between the client and server. Thorough description of `config.json` is included in this README and the `websock_test.go` file.
+
+```go
+// config.json
+{
+  // true -> server/listener mode, false -> client/connect mode
+  "Server": true,  
+  
+
+  // Debug is piped to stdout
+  "Verbosity": true,  
+  
+
+  // Encryption/compression settings
+  "Encryption": true,
+  "Compression": true,  
+  
+
+  // Connectivity settings for both client and server
+  "Port": 80,
+  "Path": "/websock.php",
+  "Domain": "127.0.0.1",  
+  
+
+  // If set to true the client will transmit data
+  "ClientTX": true,  
+  
+
+  // Data is transmitted between these intervals (seconds)
+  //  i.e every 2 seconds transmit. 
+  "ClientTXTimeMin": 2,
+  "ClientTXTimeMax": 2,  
+  
+
+  // Transmit data in length between the below intervals (bytes)
+  //  All data is sent are ASCII capitals between 0x41 - 0x5a
+  "ClientTXDataMin": 16,
+  "ClientTXDataMax": 64,  
+  
+
+  // If this is true, each character will be 'A' 0x41, otherwise
+  //  they will be ASCII capitals
+  "ClientTXDataStatic": true,  
+  
+ 
+  // If set to true, the server will transmit data to the client.
+  //  All other settings below follow the above client convention
+  "ServerTX": true,  
+  
+
+  "ServerTXTimeMin": 2,
+  "ServerTXTimeMax": 2,  
+  
+
+  "ServerTXDataMin": 16,
+  "ServerTXDataMax": 64,  
+  
+
+  "ServerTXDataStatic": true,  
+  
+
+  // Do not change this setting
+  "ModuleName": "websock"
+}
+```
+
+## Compilation and Testing
+
+Once the configuration file has been fine tuned, all that is necessary is to compile and execute the test file. If `Verbosity` is set to true, all debug output will be piped to `stdout`.
+
+```
+go build
+go test
+```
 
 ## Credits
 
