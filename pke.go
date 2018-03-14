@@ -370,4 +370,24 @@ func sendPubKey(writer http.ResponseWriter, marshalled []byte, clientId []byte) 
     return nil
 }
 
+/* Sanity test for POST_BODY_KEY_CHARSET */
+func testCharSetPKE(charset string) bool {
+
+    var elementCount = 0
+    for _, k := range charset {
+        elementCount = 0
+        for _, c := range charset {
+            if k == c {
+                elementCount += 1
+            }
+        }
+
+        if elementCount != 1 {
+            return false
+        }
+    }
+
+    return true
+}
+
 /* EOF */

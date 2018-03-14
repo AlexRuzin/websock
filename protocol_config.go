@@ -24,7 +24,12 @@ package websock
 
 /*
  * Any of these characters in the charset may be a the key
- *  for the client's public key exchange
+ *  for the client's public key exchange. Increasing the length of the
+ *  character set will require the IDS to write a signature for each
+ *  possible variation. Therefore, this characterset should be custom
+ *  for each implementation, to make the negotiation (PKE) communication
+ *  more varied. The performance cost on this is trivial. Note: each
+ *  character in this array should be unique.
  */
 const POST_BODY_KEY_CHARSET         = "aielndqor"
 

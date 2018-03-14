@@ -88,6 +88,10 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
         return nil, util.RetErrStr("FLAG_ENCRYPT must be set")
     }
 
+    if testCharSetPKE(POST_BODY_KEY_CHARSET) == false {
+        return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
+    }
+
     var server = &NetChannelService{
         IncomingHandler: handler,
         port: port,

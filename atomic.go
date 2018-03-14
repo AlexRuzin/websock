@@ -187,6 +187,9 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         return nil, util.RetErrStr("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
     }
 
+    if testCharSetPKE(POST_BODY_KEY_CHARSET) == false {
+        return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
+    }
 
     mainURL, err := url.Parse(gateURI)
     if err != nil {
