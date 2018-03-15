@@ -23,6 +23,7 @@
 package websock
 
 import (
+    "flag"
     "testing"
     "errors"
     "strconv"
@@ -32,7 +33,6 @@ import (
     "io/ioutil"
 
     "github.com/AlexRuzin/util"
-    "flag"
 )
 
 /*
@@ -133,22 +133,14 @@ var (
     genericConfig                   *configInput = nil
     mainServer                      *NetChannelService = nil
     mainClient                      *NetChannelClient = nil
-    defaultConfig                   string = JSON_FILENAME
+    defaultConfig                   *string = flag.String("config", JSON_FILENAME, "Usage -config [filename]")
 )
 func TestMainChannel(t *testing.T) {
-    /*
-     * Check for the config flag override
-     */
-    var configFilename *string = flag.String("config", defaultConfig, "Usage -config [filename]")
-    if *configFilename != defaultConfig {
-        defaultConfig = *configFilename
-    }
-
     /* Parse the user input and create a configInput instance */
     config, _ := func () (*configInput, error) {
         /* Read in the configuration file `config.json` */
 
-        rawFile, err := ioutil.ReadFile(defaultConfig)
+        rawFile, err := ioutil.ReadFile(*defaultConfig)
         if err != nil {
             panic(err)
         }
@@ -165,7 +157,7 @@ func TestMainChannel(t *testing.T) {
             panic(parseStatus)
         }
         if output.ModuleName != moduleName {
-            panic(errors.New("invalid configuration file: " + defaultConfig))
+            panic(errors.New("invalid configuration file: " + *defaultConfig))
         }
 
         return &output, nil
@@ -195,7 +187,7 @@ func TestMainChannel(t *testing.T) {
             D("Using compression [optional]: " + strconv.FormatBool(config.Compression))
         }(config)
     }
-    D("Configuration file " + defaultConfig + " is nominal, proceeding...")
+    D("Configuration file " + *defaultConfig + " is nominal, proceeding...")
 
     switch config.Server {
     case false: /* Client mode */
