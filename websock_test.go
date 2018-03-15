@@ -281,6 +281,19 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
 
     serverTX(*genericConfig)
 
+    /*
+     * Read from the client socket
+     */
+    go func (client *NetInstance) {
+        for {
+            if len, rxStatus := client.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
+                rawData := make([]byte, len)
+                client.Read(rawData)
+                D("server received (from " + client.ClientIdString + ") [size: " + util.IntToString(len) + "] " + string(rawData))
+            }
+        }
+    } (client)
+
     return nil
 }
 
@@ -341,11 +354,6 @@ func serverTX(config configInput) {
             }
         } (config)
     }
-
-    /* Receive data */
-    go func (config configInput) {
-
-    } (config)
 }
 
 func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p []byte) error) error {
@@ -368,6 +376,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
     } else {
         rawData = []byte(util.RandomString(rawLength))
     }
+    D("sent: " + string(rawData))
 
     /* Invoke the transmit method */
     var txStatus = handler(rawData)
