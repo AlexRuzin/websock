@@ -403,7 +403,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         txData          []byte = p
         deflateStatus   error = nil
     )
-    if len(p) > util.GetCompressedSize(p) {
+    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > util.GetCompressedSize(p) {
         compressionFlag |= FLAG_COMPRESS
 
         txData, deflateStatus = util.CompressStream(txData)
