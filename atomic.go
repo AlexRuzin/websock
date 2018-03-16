@@ -403,7 +403,8 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         txData          []byte = p
         deflateStatus   error = nil
     )
-    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > util.GetCompressedSize(p) {
+    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > util.GetCompressedSize(p) &&
+        !((flags & FLAG_TEST_CONNECTION) > 0) /* Compression is not required for testing the circuit */ {
         compressionFlag |= FLAG_COMPRESS
 
         txData, deflateStatus = util.CompressStream(txData)
@@ -444,7 +445,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
 
         var rawData = responseData
 
-        if (f.flags & FLAG_COMPRESS) > 0 {
+        if (f.flags & FLAG_COMPRESS) > 0 && !((flags & FLAG_TEST_CONNECTION) > 0) {
             var (
                 streamStatus        error = nil
                 decompressed        []byte
