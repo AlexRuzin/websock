@@ -315,7 +315,7 @@ func clientTX(config configInput) {
                 } else {
                     /* Transmit within a random time range */
                     util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin),
-                        int(config.ClientTXDataMax))) * time.Millisecond)
+                        int(config.ClientTXTimeMax))) * time.Millisecond)
                 }
 
                 transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
