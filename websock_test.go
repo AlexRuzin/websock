@@ -133,7 +133,8 @@ var (
     genericConfig                   *configInput = nil
     mainServer                      *NetChannelService = nil
     mainClient                      *NetChannelClient = nil
-    defaultConfig                   *string = flag.String("config", JSON_FILENAME, "Usage -config [filename]")
+    defaultConfig                   *string = flag.String("config", JSON_FILENAME,
+                                        "Usage -config [filename]")
 )
 func TestMainChannel(t *testing.T) {
     /* Parse the user input and create a configInput instance */
@@ -157,7 +158,18 @@ func TestMainChannel(t *testing.T) {
             panic(parseStatus)
         }
         if output.ModuleName != moduleName {
-            panic(errors.New("invalid configuration file: " + *defaultConfig))
+            panic(util.RetErrStr("invalid configuration file: " + *defaultConfig))
+        }
+
+        /*
+         * Check configuration sanity
+         */
+        if output.ServerTXTimeMax < output.ServerTXTimeMin ||
+            output.ServerTXDataMax < output.ServerTXDataMin ||
+            output.ClientTXDataMax < output.ClientTXDataMin ||
+            output.ClientTXTimeMax < output.ClientTXTimeMin {
+
+            panic(util.RetErrStr("invalid configuration file, data/timeout ranges are not configured properly"))
         }
 
         return &output, nil
@@ -203,21 +215,21 @@ func TestMainChannel(t *testing.T) {
                 }
 
                 return 0
-            }(config.Verbosity)|
-                func(useEncryption bool) FlagVal {
-                    if useEncryption == true {
-                        return FLAG_ENCRYPT
-                    }
+            }(config.Verbosity) |
+            func(useEncryption bool) FlagVal {
+                if useEncryption == true {
+                    return FLAG_ENCRYPT
+                }
 
-                    return 0
-                }(config.Encryption)|
-                func(useCompression bool) FlagVal {
-                    if useCompression == true {
-                        return FLAG_COMPRESS
-                    }
+                return 0
+            }(config.Encryption) |
+            func(useCompression bool) FlagVal {
+                if useCompression == true {
+                    return FLAG_COMPRESS
+                }
 
-                    return 0
-                }(config.Compression),
+                return 0
+            }(config.Compression),
         )
         if err != nil {
             panic(err)
@@ -242,21 +254,21 @@ func TestMainChannel(t *testing.T) {
                 }
 
                 return 0
-            }(config.Verbosity)|
-                func(useEncryption bool) FlagVal {
-                    if useEncryption == true {
-                        return FLAG_ENCRYPT
-                    }
+            }(config.Verbosity) |
+            func(useEncryption bool) FlagVal {
+                if useEncryption == true {
+                    return FLAG_ENCRYPT
+                }
 
-                    return 0
-                }(config.Encryption)|
-                func(useCompression bool) FlagVal {
-                    if useCompression == true {
-                        return FLAG_COMPRESS
-                    }
+                return 0
+            }(config.Encryption) |
+            func(useCompression bool) FlagVal {
+                if useCompression == true {
+                    return FLAG_COMPRESS
+                }
 
-                    return 0
-                }(config.Compression),
+                return 0
+            }(config.Compression),
             incomingClientHandler)
         if err != nil {
             panic(err)
@@ -281,7 +293,8 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
             if len, rxStatus := client.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
                 rawData := make([]byte, len)
                 client.Read(rawData)
-                D("server received (from " + client.ClientIdString + ") [size: " + util.IntToString(len) + "] " + string(rawData))
+                D("server received (from " + client.ClientIdString + ") [size: " +
+                    util.IntToString(len) + "] " + string(rawData))
             }
         }
     } (client)
@@ -301,7 +314,8 @@ func clientTX(config configInput) {
                     util.Sleep(time.Duration(config.ClientTXTimeMin) * time.Millisecond)
                 } else {
                     /* Transmit within a random time range */
-                    util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin), int(config.ClientTXDataMax))) * time.Millisecond)
+                    util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin),
+                        int(config.ClientTXDataMax))) * time.Millisecond)
                 }
 
                 transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
@@ -335,7 +349,8 @@ func serverTX(config configInput) {
                     util.Sleep(time.Duration(config.ServerTXTimeMin) * time.Millisecond)
                 } else {
                     /* Transmit within a random time range */
-                    util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin), int(config.ServerTXTimeMax))) * time.Millisecond)
+                    util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin),
+                        int(config.ServerTXTimeMax))) * time.Millisecond)
                 }
 
                 transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
@@ -368,7 +383,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
     } else {
         rawData = []byte(util.RandomString(rawLength))
     }
-    D("sent: " + string(rawData))
+    D("sent [" + util.IntToString(len(rawData)) + " bytes]: " + string(rawData))
 
     /* Invoke the transmit method */
     var txStatus = handler(rawData)
