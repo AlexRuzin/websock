@@ -408,13 +408,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
 
     /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
     value := util.B64E(encrypted)
-
-    /* Add a random length between 16-32 bytes at the end of the clientIDString */
-    clientString := func (clientID string) []byte {
-        var randValue = util.RandomString(util.RandInt(CLIENTID_POST_MIN, CLIENTID_POST_MAX))
-        return []byte(clientID + randValue)
-    } (f.clientIdString)
-    key := util.B64E(clientString)
+    key := util.B64E([]byte(f.clientIdString))
     parmMap[key] = value
 
     body, err := sendTransmission(HTTP_VERB, f.inputURI, parmMap, f)
@@ -428,14 +422,6 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         if err != nil {
             return len(body), len(p), err
         }
-
-        /* Check that the clientID does not exceed 32 bytes */
-        /* FIXME / ADDME -- finish this component
-        if len(f.clientIdString) > 32 {
-            f.clientIdString = f.clientIdString[:len(f.clientIdString) - 32]
-        }
-        */
-
         if strings.Compare(clientId, f.clientIdString) != 0 {
             return len(body), len(p), util.RetErrStr("Invalid server response")
         }

@@ -86,18 +86,4 @@ const (
     TERMINATE_CONNECTION_DATA       = "terminate connection"
 )
 
-/*
- * Ranges for the random length string prepending the clientID, which is used in the
- *  HTTP POST request. This will thwart detection on the static-length base64 sum
- *
- * Modifying these settings will make the network signature unique, and should be slightly
- *  changed for production use, reducing the chances of signature detection
- *
- * Note: CLIENTID_POST_MIN < CLIENTID_POST_MAX, or the code will break
- */
-const (
-    CLIENTID_POST_MIN               = 16
-    CLIENTID_POST_MAX               = 32
-)
-
 /* EOF */
