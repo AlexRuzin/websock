@@ -529,7 +529,7 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
             client.transport = nil
             client.request = nil
             client.cancelled = false
-            return nil, io.EOF
+            return nil, nil
         }
         return nil, util.RetErrStr("Failure in client request")
     }
