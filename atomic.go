@@ -328,7 +328,7 @@ func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
 
     /* No compression */
     _, wrote, err := f.writeStream(p, 0)
-    if err != nil {
+    if err != io.EOF {
         return 0, err
     }
 
@@ -446,10 +446,12 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         }
 
         /* Write either the compressed or decompressed stream */
-        f.responseData.Write(rawData)
+        if written, err := f.responseData.Write(rawData); err != io.EOF {
+            return len(body), written, err
+        }
     }
 
-    return len(body), len(p), nil
+    return len(body), len(p), io.EOF
 }
 
 func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err error) {
@@ -512,8 +514,8 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
     client.request = req
     client.transport = tr
     go func (r *http.Request) {
-        resp, tx_status := httpClient.Do(r)
-        if tx_status != nil {
+        resp, txStatus := httpClient.Do(r)
+        if txStatus != nil {
             close(respIo)
             return
         }
