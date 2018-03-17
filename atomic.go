@@ -135,7 +135,7 @@ var (
 )
 func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
     if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
+        return 0, util.RetErrStr("Wait(): client not connected")
     }
 
     responseLen = 0
@@ -301,7 +301,7 @@ func (f *NetChannelClient) Close() {
 
 func (f *NetChannelClient) readInternal(p []byte) (int, error) {
     if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
+        return 0, util.RetErrStr("readInternal(): client not connected")
     }
 
     if f.Len() == 0 {
@@ -318,7 +318,7 @@ func (f *NetChannelClient) readInternal(p []byte) (int, error) {
 
 func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
     if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
+        return 0, util.RetErrStr("writeInternal(): client not connected")
     }
 
     if f.transport != nil {
@@ -361,7 +361,7 @@ func (f *NetChannelClient) testCircuit() error {
 
 func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, written int, err error) {
     if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
-        return 0,0, util.RetErrStr("Client not connected")
+        return 0,0, util.RetErrStr("writeStream(): client not connected")
     }
 
     f.requestSync.Lock()
@@ -454,7 +454,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
 
 func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err error) {
     if !((flags & FLAG_TEST_CONNECTION) > 0) &&f.connected == false {
-        return 0, util.RetErrStr("Client not connected")
+        return 0, util.RetErrStr("readStream: client not connected")
     }
 
     read = f.responseData.Len()
