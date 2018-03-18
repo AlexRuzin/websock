@@ -10,6 +10,7 @@ HTTP is the overlaying protocol from which all data is sent. The client will sen
 
 Once the secret key has been generated using the ECDH key exchange, all data will be transmitted using a custom RC4 implementation [https://github.com/AlexRuzin/cryptog], which makes use of an Initialization Vector (IV), and a hardcoded value that will maintain data integrity.
 
+Development note: Please note that this software is currently under heavy development. Only use for experimental purposes.
 
 ## Features
 1. By default, the NIST P-384 curve is used to safely and covertly negotiate a key between the controller and atom (client). Any NIST-compliant curve may be used to strengthen the key exchange challenge. The following NIST keys are supported by the built-in ```crypto/elliptic``` library: NIST P-224, P-256, P-384, and P-521.
