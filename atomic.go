@@ -24,14 +24,14 @@ package websock
 
 import (
     "io"
-    "strings"
-    "bytes"
     "sync"
-    "strconv"
     "time"
+    "bytes"
+    "strings"
+    "crypto"
+    "strconv"
     "net/url"
     "net/http"
-    "crypto"
     "io/ioutil"
 
     "github.com/AlexRuzin/util"
@@ -101,6 +101,7 @@ type NetChannelClient struct {
     transport           *http.Transport
     request             *http.Request
     cancelled           bool
+    cancelledSync       sync.Mutex
 }
 
 type TransferUnit struct {
@@ -282,7 +283,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
                 return
             }
 
-            if (client.flags & FLAG_DEBUG) > 1 && read == 0 {
+            if (client.flags & FLAG_DEBUG) > 0 && read == 0 {
                 datetime := func() string {
                     return time.Now().String()
                 }()
@@ -324,7 +325,9 @@ func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
     if f.transport != nil {
         f.cancelled = true
         f.transport.CancelRequest(f.request)
+        f.cancelledSync.Lock()
     }
+    f.cancelledSync.Unlock()
 
     /* No compression */
     _, wrote, err := f.writeStream(p, 0)
@@ -474,6 +477,9 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
 }
 
 func sendTransmission(verb string, URI string, m map[string]string, client *NetChannelClient) (response []byte, err error) {
+    client.cancelledSync.Lock()
+    defer client.cancelledSync.Unlock()
+
     form := url.Values{}
     for k, v := range m {
         form.Set(k, v)
@@ -514,21 +520,24 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
     client.request = req
     client.transport = tr
     go func (r *http.Request) {
-        resp, txStatus := httpClient.Do(r)
-        if txStatus != nil {
+        var (
+            response *http.Response
+            rxStatus error = nil
+        )
+        if response, rxStatus = httpClient.Do(r); rxStatus != nil {
             close(respIo)
             return
         }
-        respIo <- resp
+        respIo <- response
     } (req)
 
     resp, ok := <- respIo
     if !ok {
         if client.cancelled == true {
             /* Forced write request */
-            client.transport = nil
-            client.request = nil
-            client.cancelled = false
+            client.transport    = nil
+            client.request      = nil
+            client.cancelled    = false
             return nil, nil
         }
         return nil, util.RetErrStr("Failure in client request")
