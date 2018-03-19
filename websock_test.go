@@ -410,7 +410,7 @@ func handlerClientTx(p []byte) error {
 func handlerServerTx(p []byte) error {
     /* Write to all clients */
     for _, v := range mainServer.clientMap {
-        D("transmitting data to client: " + v.ClientIdString)
+        //D("transmitting data to client: " + v.ClientIdString)
         txLen, err := v.Write(p)
         if err != io.EOF {
             return err
