@@ -160,7 +160,12 @@ func (f *NetInstance) Len() int {
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
 
-    return f.clientRX.Len()
+    var totalLen int = 0
+    for _, v := range f.clientRX {
+        totalLen += v.Len()
+    }
+
+    return totalLen
 }
 
 func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
