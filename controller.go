@@ -71,7 +71,7 @@ type NetInstance struct {
     secret                  []byte
     clientId                []byte
     clientTX                *bytes.Buffer /* Data waiting to be transmitted */
-    clientRX                []*bytes.Buffer /* Data that is waiting to be read */
+    clientRX                util.QueueObject /* Data that is waiting to be read */
     iOSync                  sync.Mutex
 
     connected               bool
@@ -362,7 +362,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         secret:             secret,
         clientId:           clientId[:],
         ClientIdString:     hex.EncodeToString(clientId[:]),
-        clientRX:           &bytes.Buffer{},
+        clientRX:           bytes.Buffer{},
         clientTX:           &bytes.Buffer{},
         connected:          false,
         RequestURI:         reader.RequestURI,
