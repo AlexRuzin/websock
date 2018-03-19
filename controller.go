@@ -71,7 +71,7 @@ type NetInstance struct {
     secret                  []byte
     clientId                []byte
     clientTX                *bytes.Buffer /* Data waiting to be transmitted */
-    clientRX                *bytes.Buffer /* Data that is waiting to be read */
+    clientRX                []*bytes.Buffer /* Data that is waiting to be read */
     iOSync                  sync.Mutex
 
     connected               bool
