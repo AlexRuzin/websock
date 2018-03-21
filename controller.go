@@ -71,7 +71,8 @@ type NetInstance struct {
     secret                  []byte
     clientId                []byte
     clientTX                *bytes.Buffer /* Data waiting to be transmitted */
-    clientRX                util.QueueObject /* Data that is waiting to be read */
+    clientRX                *util.QueueObject /* Data that is waiting to be read */
+    clientRXLen             uint64
     iOSync                  sync.Mutex
 
     connected               bool
@@ -156,16 +157,15 @@ func (f *NetInstance) Close() {
     channelService.CloseClient(f)
 }
 
+/*
+ * Retrieves length of the buffer at index 0
+ */
 func (f *NetInstance) Len() int {
-    f.iOSync.Lock()
-    defer f.iOSync.Unlock()
-
-    var totalLen int = 0
-    for _, v := range f.clientRX {
-        totalLen += v.Len()
+    if f.clientRX.Len() == 0 {
+        return 0
     }
 
-    return totalLen
+    return f.clientRX.Index(0).(bytes.Buffer).Len()
 }
 
 func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
@@ -362,7 +362,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         secret:             secret,
         clientId:           clientId[:],
         ClientIdString:     hex.EncodeToString(clientId[:]),
-        clientRX:           bytes.Buffer{},
+        clientRX:           util.NewQueue(),
         clientTX:           &bytes.Buffer{},
         connected:          false,
         RequestURI:         reader.RequestURI,
@@ -442,7 +442,11 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     var requestData []byte = rawData
 
     /* Decompression, if required, has already taken place in handleClientRequest() by parsing the TransmissionUnit flags */
-    f.clientRX.Write(requestData)
+    {
+        b := bytes.NewBuffer(requestData)
+        f.clientRX.Push(b)
+        f.clientRXLen += uint64(len(requestData))
+    }
 
     /* If there is any data to return, then send it over */
     var otherFlags FlagVal = 0
@@ -481,12 +485,12 @@ func (f *NetInstance) readInternal(p []byte) (int, error) {
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
 
-    data := make([]byte, f.clientRX.Len())
-    f.clientRX.Read(data)
-    f.clientRX.Reset()
-    copy(p, data)
+    buf := f.clientRX.Pop().(bytes.Buffer)
+    rawData := make([]byte, buf.Len())
+    buf.Read(rawData)
+    copy(p, rawData)
 
-    return len(data), io.EOF
+    return len(rawData), io.EOF
 }
 
 func (f *NetInstance) writeInternal(p []byte) (int, error) {
