@@ -70,15 +70,43 @@ type NetInstance struct {
     service                 *NetChannelService
     secret                  []byte
     clientId                []byte
-    clientTX                *bytes.Buffer /* Data waiting to be transmitted */
-    clientRX                *util.QueueObject /* Data that is waiting to be read */
-    clientRXLen             uint64
+    clientTX                *bytes.Buffer   /* Data waiting to be transmitted */
+    clientRX                rxBuffer        /* Data that is waiting to be read */
     iOSync                  sync.Mutex
 
     connected               bool
 
     /* URI Path */
     RequestURI              string
+}
+
+type rxBuffer struct {
+    data                    []*bytes.Buffer
+}
+
+func (f *rxBuffer) push(p []byte) {
+    d := bytes.NewBuffer(p)
+    f.data = append(f.data, d)
+}
+
+func (f *rxBuffer) pop() []byte {
+    if len(f.data) == 0 {
+        return nil
+    }
+
+    out := f.data[len(f.data) - 1]
+    f.data[len(f.data) - 1] = nil
+    f.data = f.data[:1]
+
+    return out.Bytes()
+}
+
+func (f *rxBuffer) len() int {
+    if len(f.data) == 0 {
+        return 0
+    }
+
+    return f.data[len(f.data) - 1].Len()
 }
 
 func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
@@ -120,7 +148,7 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
 
             svc.clientMap[client.ClientIdString] = client
             if err := svc.IncomingHandler(client, svc); err != nil {
-                svc.CloseClient(client)
+                svc.closeClient(client)
             }
 
             svc.clientSync.Unlock()
@@ -141,7 +169,7 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
     return server, nil
 }
 
-func (f *NetChannelService) CloseClient(client *NetInstance) {
+func (f *NetChannelService) closeClient(client *NetInstance) {
     f.clientSync.Lock()
     delete(f.clientMap, client.ClientIdString)
     f.clientSync.Unlock()
@@ -154,18 +182,14 @@ func (f *NetChannelService) CloseService() {
 }
 
 func (f *NetInstance) Close() {
-    channelService.CloseClient(f)
+    channelService.closeClient(f)
 }
 
 /*
  * Retrieves length of the buffer at index 0
  */
 func (f *NetInstance) Len() int {
-    if f.clientRX.Len() == 0 {
-        return 0
-    }
-
-    return f.clientRX.Index(0).(bytes.Buffer).Len()
+    return f.clientRX.len()
 }
 
 func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
@@ -285,7 +309,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                  )
                  if clientId, data, txUnit, err = decryptData(value[0], client.secret);
                  err != nil || strings.Compare(clientId, client.ClientIdString) != 0 {
-                     channelService.CloseClient(client)
+                     channelService.closeClient(client)
                      return
                  }
 
@@ -293,13 +317,13 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
                      var streamStatus error = nil
                      data, streamStatus = util.DecompressStream(data)
                      if streamStatus != nil {
-                         channelService.CloseClient(client)
+                         channelService.closeClient(client)
                          return
                      }
                  }
 
                  if err := client.parseClientData(data, writer); err != nil {
-                     channelService.CloseClient(client)
+                     channelService.closeClient(client)
                      return
                  }
 
@@ -362,7 +386,7 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         secret:             secret,
         clientId:           clientId[:],
         ClientIdString:     hex.EncodeToString(clientId[:]),
-        clientRX:           util.NewQueue(),
+        clientRX:           rxBuffer{},
         clientTX:           &bytes.Buffer{},
         connected:          false,
         RequestURI:         reader.RequestURI,
@@ -442,11 +466,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     var requestData []byte = rawData
 
     /* Decompression, if required, has already taken place in handleClientRequest() by parsing the TransmissionUnit flags */
-    {
-        b := bytes.NewBuffer(requestData)
-        f.clientRX.Push(b)
-        f.clientRXLen += uint64(len(requestData))
-    }
+    f.clientRX.push(requestData)
 
     /* If there is any data to return, then send it over */
     var otherFlags FlagVal = 0
@@ -478,16 +498,14 @@ func (f *NetInstance) readInternal(p []byte) (int, error) {
         return 0, util.RetErrStr("client not connected")
     }
 
-    if f.clientRX.Len() == 0 {
+    if f.clientRX.len() == 0 {
         return 0, io.EOF
     }
 
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
 
-    buf := f.clientRX.Pop().(bytes.Buffer)
-    rawData := make([]byte, buf.Len())
-    buf.Read(rawData)
+    rawData := f.clientRX.pop()
     copy(p, rawData)
 
     return len(rawData), io.EOF
