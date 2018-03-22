@@ -382,12 +382,13 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
             var timeout = CONTROLLER_RESPONSE_TIMEOUT * 100
             for ; timeout != 0; timeout -= 1 {
                 if f.clientTX.Len() != 0 {
-                    f.iOSync.Lock()
-                    defer f.iOSync.Unlock() /* We break out of the loop so defer is OK */
                     break
                 }
                 util.Sleep(10 * time.Millisecond)
             }
+
+            f.iOSync.Lock()
+            defer f.iOSync.Unlock() /* We break out of the loop so defer is OK */
 
             if timeout == 0 || f.clientTX.Len() == 0 {
                 /* Time out -- no data to be sent */
