@@ -556,6 +556,10 @@ func (f *rxBuffer) len() int {
         return 0
     }
 
+    if len(f.data) == 1 {
+        return f.data[0].Len()
+    }
+
     return f.data[len(f.data) - 1].Len()
 }
 
