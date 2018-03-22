@@ -383,21 +383,19 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
             for ; timeout != 0; timeout -= 1 {
                 if f.clientTX.Len() != 0 {
                     f.iOSync.Lock()
+                    defer f.iOSync.Unlock() /* We break out of the loop so defer is OK */
                     break
                 }
                 util.Sleep(10 * time.Millisecond)
             }
 
-            if timeout == 0 {
+            if timeout == 0 || f.clientTX.Len() == 0 {
                 /* Time out -- no data to be sent */
-                if f.clientTX.Len() == 0 {
-                    writer.WriteHeader(http.StatusOK)
-                    return nil
-                }
+                writer.WriteHeader(http.StatusOK)
+                return nil
             }
 
             defer f.clientTX.Reset()
-            defer f.iOSync.Unlock()
 
             var (
                 outputStream []byte = f.clientTX.Bytes()
