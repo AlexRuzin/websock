@@ -71,17 +71,13 @@ type NetInstance struct {
     secret                  []byte
     clientId                []byte
     clientTX                *bytes.Buffer   /* Data waiting to be transmitted */
-    clientRX                rxBuffer        /* Data that is waiting to be read */
+    clientRX                rxBuffer        /* Data that is waiting to be read, using a custom FIFO queue */
     iOSync                  sync.Mutex
 
     connected               bool
 
     /* URI Path */
     RequestURI              string
-}
-
-type rxBuffer struct {
-    data                    []*bytes.Buffer
 }
 
 func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
@@ -441,7 +437,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     var requestData []byte = rawData
 
     /* Decompression, if required, has already taken place in handleClientRequest() by parsing the TransmissionUnit flags */
-    f.clientRX.push(requestData)
+    f.clientRX.enqueue(requestData)
 
     /* If there is any data to return, then send it over */
     var otherFlags FlagVal = 0
@@ -480,7 +476,7 @@ func (f *NetInstance) readInternal(p []byte) (int, error) {
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
 
-    rawData := f.clientRX.pop()
+    rawData := f.clientRX.dequeue()
     copy(p, rawData)
 
     return len(rawData), io.EOF
@@ -525,42 +521,71 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
 /*
  * Queue mechanism for the read buffer, implements a FIFO queue
  */
-func (f *rxBuffer) push(p []byte) {
-    d := bytes.NewBuffer(p)
-    f.data = append(f.data, d)
+type rxBuffer struct {
+    data                    bytes.Buffer
+
+    /*
+     * double-linked list containing data packets (this will later be expanded to contain
+     *  additional properties per each data buffer
+     */
+    next                    *rxBuffer
+    last                    *rxBuffer
 }
 
-func (f *rxBuffer) pop() []byte {
-    if len(f.data) == 0 {
-        return nil
+var firstRxNode *rxBuffer = nil
+func (f *rxBuffer) enqueue(p []byte) {
+    if firstRxNode == nil {
+        firstRxNode = &rxBuffer{
+            data:       *bytes.NewBuffer(p),
+            next:       nil,
+            last:       nil,
+        }
+
+        return
     }
 
-    if len(f.data) == 0 {
-        out := f.data[0]
-        f.data[0] = nil
-        return out.Bytes()
+    var newData = &rxBuffer{
+        data:           *bytes.NewBuffer(p),
+        next:           firstRxNode,
+        last:           nil,
     }
 
-    out := f.data[len(f.data) - 1]
-    f.data[len(f.data) - 1] = nil
-    f.data = f.data[:1]
+    firstRxNode = newData
+}
 
-    return out.Bytes()
+func (f *rxBuffer) dequeue() []byte {
+    if firstRxNode == nil {
+        panic(util.RetErrStr("rxBuffer contains no additional data"))
+    }
+
+    tmpNode := firstRxNode
+    for ;tmpNode.next != nil; tmpNode = tmpNode.next {}
+
+    if tmpNode == firstRxNode {
+        dataOut := firstRxNode.data.Bytes()
+        firstRxNode = nil
+
+        return dataOut
+    }
+
+    dataOut := tmpNode.data.Bytes()
+    tmpNode.last.next = nil
+
+    return dataOut
 }
 
 /*
  * The length of the next packet is only returned
  */
 func (f *rxBuffer) len() int {
-    if len(f.data) == 0 {
+    if firstRxNode == nil {
         return 0
     }
 
-    if len(f.data) == 1 {
-        return f.data[0].Len()
-    }
+    tmpNode := firstRxNode
+    for ;tmpNode.next != nil; tmpNode = tmpNode.next {}
 
-    return f.data[len(f.data) - 1].Len()
+    return tmpNode.data.Len()
 }
 
 func (f *NetChannelService) sendDebug(s string) {
