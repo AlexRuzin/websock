@@ -42,7 +42,7 @@ import (
 )
 
 /************************************************************
- * websock Server objects and methods  f                    *
+ * websock Server objects and methods                       *
  ************************************************************/
 var clientIO chan *NetInstance = nil
 var channelService *NetChannelService = nil
@@ -82,31 +82,6 @@ type NetInstance struct {
 
 type rxBuffer struct {
     data                    []*bytes.Buffer
-}
-
-func (f *rxBuffer) push(p []byte) {
-    d := bytes.NewBuffer(p)
-    f.data = append(f.data, d)
-}
-
-func (f *rxBuffer) pop() []byte {
-    if len(f.data) == 0 {
-        return nil
-    }
-
-    out := f.data[len(f.data) - 1]
-    f.data[len(f.data) - 1] = nil
-    f.data = f.data[:1]
-
-    return out.Bytes()
-}
-
-func (f *rxBuffer) len() int {
-    if len(f.data) == 0 {
-        return 0
-    }
-
-    return f.data[len(f.data) - 1].Len()
 }
 
 func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
@@ -545,6 +520,37 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
     fmt.Fprintln(writer, b64Encoded)
 
     return nil
+}
+
+/*
+ * Queue mechanism for the read buffer, implements a FIFO queue
+ */
+func (f *rxBuffer) push(p []byte) {
+    d := bytes.NewBuffer(p)
+    f.data = append(f.data, d)
+}
+
+func (f *rxBuffer) pop() []byte {
+    if len(f.data) == 0 {
+        return nil
+    }
+
+    out := f.data[len(f.data) - 1]
+    f.data[len(f.data) - 1] = nil
+    f.data = f.data[:1]
+
+    return out.Bytes()
+}
+
+/*
+ * The length of the next packet is only returned
+ */
+func (f *rxBuffer) len() int {
+    if len(f.data) == 0 {
+        return 0
+    }
+
+    return f.data[len(f.data) - 1].Len()
 }
 
 func (f *NetChannelService) sendDebug(s string) {
