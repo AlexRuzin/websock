@@ -535,6 +535,12 @@ func (f *rxBuffer) pop() []byte {
         return nil
     }
 
+    if len(f.data) == 0 {
+        out := f.data[0]
+        f.data[0] = nil
+        return out.Bytes()
+    }
+
     out := f.data[len(f.data) - 1]
     f.data[len(f.data) - 1] = nil
     f.data = f.data[:1]
