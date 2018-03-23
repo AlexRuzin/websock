@@ -98,35 +98,35 @@ const DEFAULT_RX_WAIT_DURATION      time.Duration = 5000 /* milliseconds */
 const moduleName                    string = "websock" /* Do not change this setting */
 type configInput struct {
     /* Default test mode */
-    Server                          bool
+    Server                          bool        `json:"Server"`
 
-    Verbosity                       bool
+    Verbosity                       bool        `json:"Verbosity"`
 
-    Encryption                      bool
-    Compression                     bool
+    Encryption                      bool        `json:"Encryption"`
+    Compression                     bool        `json:"Compression"`
 
-    Port                            uint16
-    Path                            string
-    Domain                          string
+    Port                            uint16      `json:"Port"`
+    Path                            string      `json:"Path"`
+    Domain                          string      `json:"Domain"`
 
     /* Transmission from client configuration */
-    ClientTX                        bool
-    ClientTXTimeMin                 uint64
-    ClientTXTimeMax                 uint64
-    ClientTXDataMin                 uint
-    ClientTXDataMax                 uint
-    ClientTXDataStatic              bool
+    ClientTX                        bool        `json:"ClientTX"`
+    ClientTXTimeMin                 uint64      `json:"ClientTXTimeMin"`
+    ClientTXTimeMax                 uint64      `json:"ClientTXTimeMax"`
+    ClientTXDataMin                 uint        `json:"ClientTXDataMin"`
+    ClientTXDataMax                 uint        `json:"ClientTXDataMax"`
+    ClientTXDataStatic              bool        `json:"ClientTXDataStatic"`
 
     /* Transmission from server configuration */
-    ServerTX                        bool
-    ServerTXTimeMin                 uint64
-    ServerTXTimeMax                 uint64
-    ServerTXDataMin                 uint
-    ServerTXDataMax                 uint
-    ServerTXDataStatic              bool
+    ServerTX                        bool        `json:"ServerTX"`
+    ServerTXTimeMin                 uint64      `json:"ServerTXTimeMin"`
+    ServerTXTimeMax                 uint64      `json:"ServerTXTimeMax"`
+    ServerTXDataMin                 uint        `json:"ServerTXDataMin"`
+    ServerTXDataMax                 uint        `json:"ServerTXDataMax"`
+    ServerTXDataStatic              bool        `json:"ServerTXDataStatic"`
 
     /* This value must be static "websock" */
-    ModuleName                      string
+    ModuleName                      string      `json:"ModuleName"`
 }
 
 var (
