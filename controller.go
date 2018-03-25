@@ -44,9 +44,6 @@ import (
 /************************************************************
  * websock Server objects and methods                       *
  ************************************************************/
-var clientIO chan *NetInstance = nil
-var channelService *NetChannelService = nil
-
 type NetChannelService struct {
     /* Handler for new clients */
     IncomingHandler         func(client *NetInstance, server *NetChannelService) error
@@ -80,6 +77,10 @@ type NetInstance struct {
     RequestURI              string
 }
 
+var (
+    clientIO                chan *NetInstance
+    channelService          *NetChannelService
+)
 func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
 
@@ -92,19 +93,21 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
         return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
     }
 
-    var server = &NetChannelService{
-        IncomingHandler: handler,
-        port: port,
-        Flags: flags,
-        pathGate: pathGate,
+    channelService = &NetChannelService{
+        IncomingHandler:    handler,
+        port:               port,
+        Flags:              flags,
+        pathGate:           pathGate,
 
         /* Map consists of key: ClientId (string) and value: *NetInstance object */
-        clientMap: make(map[string]*NetInstance),
-        clientIO: make(chan *NetInstance),
+        clientMap:          make(map[string]*NetInstance),
+        clientIO:           make(chan *NetInstance),
     }
-    clientIO = server.clientIO
-    channelService = server
 
+    return channelService, nil
+}
+
+func (f *NetChannelService) startListeners(server *NetChannelService) {
     go func (svc *NetChannelService) {
         var wg sync.WaitGroup
         wg.Add(1)
@@ -136,8 +139,6 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
             util.ThrowN("panic: Failure in loading httpd.")
         }
     } (server)
-
-    return server, nil
 }
 
 func (f *NetChannelService) closeClient(client *NetInstance) {
@@ -211,35 +212,17 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     if clientIO == nil {
-        panic(util.RetErrStr("Cannot handle request without initializing processor"))
+        util.RetErrStr("Cannot handle request without initializing processor")
     }
-
     defer reader.Body.Close()
 
-    /* Get remote client public key base64 marshalled string */
-    if err := reader.ParseForm(); err != nil {
-        util.DebugOut(err.Error())
-        return
-    }
-    const cs = POST_BODY_KEY_CHARSET
-    var marshalledPublicClientKey *string = nil
-    for key := range reader.Form {
-        for i := len(POST_BODY_KEY_CHARSET); i != 0; i -= 1 {
-            var tmpKey = string(cs[i - 1])
-
-            decodedKey, err := util.B64D(key)
-            if err != nil {
-                return
-            }
-
-            if strings.Compare(tmpKey, string(decodedKey)) == 0 {
-                marshalledPublicClientKey = &reader.Form[key][0]
-                break
-            }
-        }
-        if marshalledPublicClientKey != nil {
-            break
-        }
+    /* Contains the marshalled Public Key after the initial decoding */
+    var (
+        marshalledPublicClientKey       *string
+        keyStatus                       error
+    )
+    if marshalledPublicClientKey, keyStatus = decodePublicKeyParameters(reader); keyStatus != nil {
+        util.RetErrStr(keyStatus.Error())
     }
 
     if marshalledPublicClientKey == nil {
@@ -251,71 +234,33 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
          * If it's a command, then there should be only one parameter, which is:
          *  b64(ClientIdString) = <command>
          */
-         key := reader.Form
-         if key == nil {
-             return
-         }
+         parseExistingClient(reader, &writer)
 
-         for k := range key {
-             var err error = nil
-             var decodedKey []byte
-             if decodedKey, err = util.B64D(k); err != nil {
-                 continue
-             }
-             client := channelService.clientMap[string(decodedKey)]
-             if client != nil {
-                 /*
-                  * An active connection exists.
-                  *
-                  * Base64 decode the signal and return the RC4 encrypted buffer to
-                  *  be processed
-                  *
-                  * Write data to NetInstance.ClientData
-                  */
-                 value := key[k]
-                 var (
-                     clientId       string
-                     data           []byte = nil
-                     txUnit         *TransferUnit = nil
-                 )
-                 if clientId, data, txUnit, err = decryptData(value[0], client.secret);
-                 err != nil || strings.Compare(clientId, client.ClientIdString) != 0 {
-                     channelService.closeClient(client)
-                     return
-                 }
-
-                 if (channelService.Flags & FLAG_COMPRESS) > 0 && (txUnit.Flags & FLAG_COMPRESS) > 0 {
-                     var streamStatus error = nil
-                     data, streamStatus = util.DecompressStream(data)
-                     if streamStatus != nil {
-                         channelService.closeClient(client)
-                         return
-                     }
-                 }
-
-                 if err := client.parseClientData(data, writer); err != nil {
-                     channelService.closeClient(client)
-                     return
-                 }
-
-                 return /* The appropriate ClientData has been stored, so no more need for this method */
-             }
-         }
+         return /* The appropriate ClientData has been stored, so no more need for this method */
     }
 
+    /*
+     * Create a new client
+     */
+    handleNewClient(*marshalledPublicClientKey, reader, &writer)
+
+    return
+}
+
+func handleNewClient(marshalledKey string, reader *http.Request, writer *http.ResponseWriter) error {
     /* Parse client-side public ECDH key*/
-    marshalled, err := getClientPublicKey(*marshalledPublicClientKey)
+    marshalled, err := getClientPublicKey(marshalledKey)
     if err != nil || marshalled == nil {
-        sendBadErrorCode(writer, err)
+        sendBadErrorCode(*writer, err)
         util.DebugOut(err.Error())
-        return
+        return err
     }
 
     ecurve := ecdh.NewEllipticECDH(elliptic.P384())
     clientPublicKey, ok := ecurve.Unmarshal(marshalled)
     if !ok {
-        sendBadErrorCode(writer, util.RetErrStr("unmarshalling failed"))
-        return
+        sendBadErrorCode(*writer, util.RetErrStr("unmarshalling failed"))
+        return util.RetErrStr("Failed to unmarshal the ecurve Public Key")
     }
 
     /*
@@ -324,27 +269,27 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
      */
     serverPrivateKey, serverPublicKey, err := ecurve.GenerateKey(rand.Reader)
     if err != nil {
-        sendBadErrorCode(writer, err)
-        return
+        sendBadErrorCode(*writer, err)
+        return err
     }
 
     /* Transmit the server public key */
     var serverPubKeyMarshalled = ecurve.Marshal(serverPublicKey)
     if serverPubKeyMarshalled == nil {
-        sendBadErrorCode(writer, util.RetErrStr("Failed to marshal server-side pub key"))
-        return
+        sendBadErrorCode(*writer, util.RetErrStr("Failed to marshal server-side pub key"))
+        return err
     }
     clientId := md5.Sum(marshalled)
-    if err := sendPubKey(writer, serverPubKeyMarshalled, clientId[:]); err != nil {
-        sendBadErrorCode(writer, err)
-        return
+    if err := sendPubKey(*writer, serverPubKeyMarshalled, clientId[:]); err != nil {
+        sendBadErrorCode(*writer, err)
+        return err
     }
 
     /* Generate the secret */
     secret, err := ecurve.GenerateSharedSecret(serverPrivateKey, clientPublicKey)
     if len(secret) == 0 {
-        sendBadErrorCode(writer, util.RetErrStr("Failed to generate a shared secret key"))
-        return
+        sendBadErrorCode(*writer, util.RetErrStr("Failed to generate a shared secret key"))
+        return err
     }
 
     if (channelService.Flags & FLAG_DEBUG) > 1 {
@@ -363,7 +308,100 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
         RequestURI:         reader.RequestURI,
     }
 
+    /* Send the signal to startListeners() */
     clientIO <- instance
+
+    return nil
+}
+
+func parseExistingClient(reader *http.Request, writer *http.ResponseWriter) {
+    /*
+  * Parameter for key negotiation does not exist. This implies that either someone is not using
+  *  the server in the designed fashion, or that there is another command request coming from
+  *  and existing client. Here we verify if the client exists.
+  *
+  * If it's a command, then there should be only one parameter, which is:
+  *  b64(ClientIdString) = <command>
+  */
+    key := reader.Form
+    if key == nil {
+        return
+    }
+
+    for k := range key {
+        var err error = nil
+        var decodedKey []byte
+        if decodedKey, err = util.B64D(k); err != nil {
+            continue
+        }
+        client := channelService.clientMap[string(decodedKey)]
+        if client != nil {
+            /*
+             * An active connection exists.
+             *
+             * Base64 decode the signal and return the RC4 encrypted buffer to
+             *  be processed
+             *
+             * Write data to NetInstance.ClientData
+             */
+            value := key[k]
+            var (
+                clientId       string
+                data           []byte = nil
+                txUnit         *TransferUnit = nil
+            )
+            if clientId, data, txUnit, err = decryptData(value[0], client.secret);
+                err != nil || strings.Compare(clientId, client.ClientIdString) != 0 {
+                channelService.closeClient(client)
+                return
+            }
+
+            if (channelService.Flags & FLAG_COMPRESS) > 0 && (txUnit.Flags & FLAG_COMPRESS) > 0 {
+                var streamStatus error = nil
+                data, streamStatus = util.DecompressStream(data)
+                if streamStatus != nil {
+                    channelService.closeClient(client)
+                    return
+                }
+            }
+
+            if err := client.parseClientData(data, *writer); err != nil {
+                channelService.closeClient(client)
+                return
+            }
+
+            return /* The appropriate ClientData has been stored, so no more need for this method */
+        }
+    }
+}
+
+func decodePublicKeyParameters(reader *http.Request) (clientKey *string, err error) {
+    /* Get remote client public key base64 marshalled string */
+    if err := reader.ParseForm(); err != nil {
+        util.DebugOut(err.Error())
+        return nil, err
+    }
+    const cs = POST_BODY_KEY_CHARSET
+    clientKey = nil
+    for key := range reader.Form {
+        for i := len(POST_BODY_KEY_CHARSET); i != 0; i -= 1 {
+            var tmpKey = string(cs[i - 1])
+
+            decodedKey, err := util.B64D(key)
+            if err != nil {
+                return nil, err
+            }
+
+            if strings.Compare(tmpKey, string(decodedKey)) == 0 {
+                clientKey = &reader.Form[key][0]
+                break
+            }
+        }
+        if clientKey != nil {
+            break
+        }
+    }
+    return clientKey, nil
 }
 
 func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter) error {
