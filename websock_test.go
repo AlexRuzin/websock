@@ -137,6 +137,140 @@ var (
                                         "Usage -config [filename]")
 )
 func TestMainChannel(t *testing.T) {
+    /* Parse config */
+    if _, err := setupJSONconfig(*defaultConfig); err != nil {
+        util.RetErrStr(err.Error())
+    }
+
+    /* Debug output if verbosity switch is true */
+    if genericConfig.Verbosity == true {
+        printDebugOutput()
+    }
+
+    switch genericConfig.Server {
+    case false: /* Client mode */
+        if _, err := startClientMode(*genericConfig); err != nil {
+            util.RetErrStr(err.Error())
+        }
+
+        break
+    case true: /* Server mode */
+        if _, err := startServerMode(*genericConfig); err != nil {
+            util.RetErrStr(err.Error())
+        }
+    }
+
+    /* Wait forever */
+    util.WaitForever()
+}
+
+func startServerMode(config configInput) (*NetChannelService, error) {
+    D("Server is running on localhost, port: " + util.IntToString(int(genericConfig.Port)) +
+        ", on HTTP URI path: " + genericConfig.Path)
+
+    server, err := CreateServer(genericConfig.Path, int16(genericConfig.Port),
+        /* The below inlines will determine which flags to use based on use input */
+        func(useDebug bool) FlagVal {
+            if useDebug == true {
+                return FLAG_DEBUG
+            }
+
+            return 0
+        }(genericConfig.Verbosity) |
+            func(useEncryption bool) FlagVal {
+                if useEncryption == true {
+                    return FLAG_ENCRYPT
+                }
+
+                return 0
+            }(genericConfig.Encryption) |
+            func(useCompression bool) FlagVal {
+                if useCompression == true {
+                    return FLAG_COMPRESS
+                }
+
+                return 0
+            }(genericConfig.Compression),
+        incomingClientHandler)
+    if err != nil {
+        panic(err)
+    }
+    mainServer = server
+
+    return mainServer, nil
+}
+
+func startClientMode(config configInput) (*NetChannelClient, error) {
+    var gateURI string = "http://" + config.Domain + ":" +
+        util.IntToString(int(config.Port)) + config.Path
+    D("Client target URI is: " + gateURI)
+
+    client, err := BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */ ,
+
+        /* The below inlines will determine which flags to use based on use input */
+        func(useDebug bool) FlagVal {
+            if useDebug == true {
+                return FLAG_DEBUG
+            }
+
+            return 0
+        }(config.Verbosity) |
+            func(useEncryption bool) FlagVal {
+                if useEncryption == true {
+                    return FLAG_ENCRYPT
+                }
+
+                return 0
+            }(config.Encryption) |
+            func(useCompression bool) FlagVal {
+                if useCompression == true {
+                    return FLAG_COMPRESS
+                }
+
+                return 0
+            }(config.Compression),
+    )
+    if err != nil {
+        util.RetErrStr(err.Error())
+    }
+    if err := client.InitializeCircuit(); err != nil {
+        util.RetErrStr(err.Error())
+    }
+
+    mainClient = client
+    clientTX(config)
+
+    return mainClient, nil
+}
+
+func printDebugOutput() {
+    /* It is absolutely required to use encryption, therefore check for this prior to anything futher */
+    if genericConfig.Encryption == false {
+        panic(errors.New("must use the 'encrypt' flag to 'true'"))
+    }
+
+    if genericConfig.Verbosity == true {
+        func(config *configInput) {
+            switch config.Server {
+            case false: /* Client mode */
+                D("We are running in TYPE_CLIENT mode. Default target server is: " + "http://" +
+                    config.Domain + ":" + util.IntToString(int(config.Port)) +
+                    config.Path)
+                break
+            case true: /* Server mode */
+                D("We are running in TYPE_SERVER mode. Default listening port is: " +
+                    util.IntToString(int(config.Port)))
+                D("Default listen path is set to: " + config.Path)
+            }
+
+            D("Using encryption [forced]: " + strconv.FormatBool(config.Encryption))
+            D("Using compression [optional]: " + strconv.FormatBool(config.Compression))
+        }(genericConfig)
+    }
+    D("Configuration file " + *defaultConfig + " is nominal, proceeding...")
+}
+
+func setupJSONconfig(file string) (configInput, error) {
     /* Parse the user input and create a configInput instance */
     config, _ := func () (*configInput, error) {
         /* Read in the configuration file `config.json` */
@@ -176,108 +310,7 @@ func TestMainChannel(t *testing.T) {
     } ()
     genericConfig = config
 
-    /* It is absolutely required to use encryption, therefore check for this prior to anything futher */
-    if config.Encryption == false {
-        panic(errors.New("must use the 'encrypt' flag to 'true'"))
-    }
-
-    if config.Verbosity == true {
-        func(config *configInput) {
-            switch config.Server {
-            case false: /* Client mode */
-                D("We are running in TYPE_CLIENT mode. Default target server is: " + "http://" +
-                    config.Domain + ":" + util.IntToString(int(config.Port)) +
-                        config.Path)
-                break
-            case true: /* Server mode */
-                D("We are running in TYPE_SERVER mode. Default listening port is: " +
-                    util.IntToString(int(config.Port)))
-                D("Default listen path is set to: " + config.Path)
-            }
-
-            D("Using encryption [forced]: " + strconv.FormatBool(config.Encryption))
-            D("Using compression [optional]: " + strconv.FormatBool(config.Compression))
-        }(config)
-    }
-    D("Configuration file " + *defaultConfig + " is nominal, proceeding...")
-
-    switch config.Server {
-    case false: /* Client mode */
-        var gateURI string = "http://" + config.Domain + ":" + util.IntToString(int(config.Port)) + config.Path
-        D("Client target URI is: " + gateURI)
-
-        client, err := BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */ ,
-
-            /* The below inlines will determine which flags to use based on use input */
-            func(useDebug bool) FlagVal {
-                if useDebug == true {
-                    return FLAG_DEBUG
-                }
-
-                return 0
-            }(config.Verbosity) |
-            func(useEncryption bool) FlagVal {
-                if useEncryption == true {
-                    return FLAG_ENCRYPT
-                }
-
-                return 0
-            }(config.Encryption) |
-            func(useCompression bool) FlagVal {
-                if useCompression == true {
-                    return FLAG_COMPRESS
-                }
-
-                return 0
-            }(config.Compression),
-        )
-        if err != nil {
-            panic(err)
-        }
-        if err := client.InitializeCircuit(); err != nil {
-            panic(err)
-        }
-
-        mainClient = client
-        clientTX(*genericConfig)
-
-        break
-    case true: /* Server mode */
-        D("Server is running on localhost, port: " + util.IntToString(int(config.Port)) +
-            ", on HTTP URI path: " + config.Path)
-
-        server, err := CreateServer(config.Path, int16(config.Port),
-            /* The below inlines will determine which flags to use based on use input */
-            func(useDebug bool) FlagVal {
-                if useDebug == true {
-                    return FLAG_DEBUG
-                }
-
-                return 0
-            }(config.Verbosity) |
-            func(useEncryption bool) FlagVal {
-                if useEncryption == true {
-                    return FLAG_ENCRYPT
-                }
-
-                return 0
-            }(config.Encryption) |
-            func(useCompression bool) FlagVal {
-                if useCompression == true {
-                    return FLAG_COMPRESS
-                }
-
-                return 0
-            }(config.Compression),
-            incomingClientHandler)
-        if err != nil {
-            panic(err)
-        }
-        mainServer = server
-    }
-
-    /* Wait forever */
-    util.WaitForever()
+    return genericConfig, nil
 }
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
@@ -306,26 +339,28 @@ func clientTX(config configInput) {
     /*
      * Transmit data
      */
-    if config.ClientTX == true {
-        go func (config configInput) {
-            var transmitStatus error = nil
-            for {
-                if config.ClientTXTimeMin == config.ClientTXTimeMax {
-                    util.Sleep(time.Duration(config.ClientTXTimeMin) * time.Millisecond)
-                } else {
-                    /* Transmit within a random time range */
-                    util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin),
-                        int(config.ClientTXTimeMax))) * time.Millisecond)
-                }
+    func () {
+        if config.ClientTX == true {
+            go func(config configInput) {
+                var transmitStatus error = nil
+                for {
+                    if config.ClientTXTimeMin == config.ClientTXTimeMax {
+                        util.Sleep(time.Duration(config.ClientTXTimeMin) * time.Millisecond)
+                    } else {
+                        /* Transmit within a random time range */
+                        util.Sleep(time.Duration(util.RandInt(int(config.ClientTXTimeMin),
+                            int(config.ClientTXTimeMax))) * time.Millisecond)
+                    }
 
-                transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
-                    config.ClientTXDataStatic, handlerClientTx)
-                if transmitStatus != nil {
-                    panic(transmitStatus)
+                    transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
+                        config.ClientTXDataStatic, handlerClientTx)
+                    if transmitStatus != nil {
+                        panic(transmitStatus)
+                    }
                 }
-            }
-        } (config)
-    }
+            }(config)
+        }
+    } ()
 
     /* Receive data */
     go func (config configInput) {
