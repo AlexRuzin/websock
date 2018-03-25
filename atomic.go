@@ -224,38 +224,9 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
 }
 
 func (f *NetChannelClient) InitializeCircuit() error {
-    /*
-     * Generate keypair, construct HTTP POST request parameter map
-     */
-    var ( /* Output reserved for keypair/post request generate method */
-        curve                   ecdh.ECDH
-        request                 map[string]string
-        initStatus              error = nil
-        clientPrivateKey        crypto.PrivateKey
-    )
-    curve, request, clientPrivateKey, initStatus = f.generateCurvePostRequest()
-    if initStatus != nil {
-        return initStatus
-    }
-
-    /* Perform HTTP TX, receive the public key from the server */
-    body, txErr := sendTransmission(HTTP_VERB /* POST */, f.inputURI, request, f)
-    if txErr != nil && txErr != io.EOF {
-        return txErr
-    }
-
-    /*
-     * Decode the public key returned by the server and create a secret key
-     */
-    var genStatus               error = nil
-    f.secret, genStatus = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve)
-    if genStatus != nil {
-        return genStatus
-    }
-
-    if (f.flags & FLAG_DEBUG) > 1 {
-        util.DebugOut("Client-side secret:")
-        util.DebugOutHex(f.secret)
+    /* Transmit and receive public keys, generate secret */
+    if pkeStatus := f.initializePKE(); pkeStatus != nil {
+        return pkeStatus
     }
 
     /*
@@ -266,6 +237,15 @@ func (f *NetChannelClient) InitializeCircuit() error {
         return err
     }
 
+    /*
+     * Keep sending POSTs until some data is written to the controller write interface
+     */
+    checkWriteThread(f)
+
+    return nil
+}
+
+func checkWriteThread(client *NetChannelClient) {
     /*
      * Periodically check to see if the server has any data to be sent to the
      *  socket. This is the primary i/o subsystem
@@ -290,7 +270,43 @@ func (f *NetChannelClient) InitializeCircuit() error {
                 util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
             }
         }
-    } (f)
+    } (client)
+}
+
+func (f *NetChannelClient) initializePKE() (error) {
+    /*
+  * Generate keypair, construct HTTP POST request parameter map
+  */
+    var ( /* Output reserved for keypair/post request generate method */
+        curve                   ecdh.ECDH
+        request                 map[string]string
+        initStatus              error = nil
+        clientPrivateKey        crypto.PrivateKey
+    )
+    curve, request, clientPrivateKey, initStatus = f.generateCurvePostRequest()
+    if initStatus != nil {
+        return initStatus
+    }
+
+    /* Perform HTTP TX, receive the public key from the server */
+    body, txErr := f.sendTransmission(HTTP_VERB /* POST */, f.inputURI, request, f)
+    if txErr != nil && txErr != io.EOF {
+        return txErr
+    }
+
+    /*
+     * Decode the public key returned by the server and create a secret key
+     */
+    var genStatus               error = nil
+    f.secret, genStatus = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve)
+    if genStatus != nil {
+        return genStatus
+    }
+
+    if (f.flags & FLAG_DEBUG) > 1 {
+        util.DebugOut("Client-side secret:")
+        util.DebugOutHex(f.secret)
+    }
 
     return nil
 }
@@ -362,7 +378,7 @@ func (f *NetChannelClient) testCircuit() error {
     return nil
 }
 
-func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, written int, err error) {
+func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int, written int, err error) {
     if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
         return 0,0, util.RetErrStr("writeStream(): client not connected")
     }
@@ -370,9 +386,72 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
     f.requestSync.Lock()
     defer f.requestSync.Unlock()
 
+    /* Generate parameters */
+    parmMap, err := f.generatePOSTrequest(rawData, flags)
+    if err != nil {
+        util.RetErrStr(err.Error())
+    }
+
+    /* Transmit */
+    body, err := f.sendTransmission(HTTP_VERB, f.inputURI, parmMap, f)
+    if err != nil {
+        return 0,0, err
+    }
+    read = len(body)
+
+    written = 0
+    if len(body) != 0 {
+        /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
+        if written, err = f.processHTTPresponse(body, flags); err != nil {
+            util.RetErrStr(err.Error())
+        }
+    }
+
+    err = io.EOF
+    return
+}
+
+func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (written int, err error) {
+    /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
+    clientId, responseData, _, err := decryptData(string(body), f.secret)
+    if err != nil {
+        return 0, err
+    }
+    if strings.Compare(clientId, f.clientIdString) != 0 {
+        return 0, util.RetErrStr("Invalid server response")
+    }
+
+    f.responseSync.Lock()
+    defer f.responseSync.Unlock()
+
+    var rawData = responseData
+
+    if (f.flags & FLAG_COMPRESS) > 0 && !((flags & FLAG_TEST_CONNECTION) > 0) {
+        var (
+            streamStatus        error = nil
+            decompressed        []byte
+        )
+
+        decompressed, streamStatus = util.DecompressStream(responseData)
+        if streamStatus != nil {
+            return 0, err
+        }
+
+        rawData = decompressed
+    }
+
+    /* Write either the compressed or decompressed stream */
+    if written, err = f.responseData.Write(rawData); err != io.EOF {
+        return written, err
+    }
+
+    return written, nil
+}
+
+func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (map[string]string, error) {
     /* Internal commands are based on the FlagVal bit flag */
-    if len(p) == 0 && flags != 0 {
-        p = func (flags FlagVal) []byte {
+    if len(rawData) == 0 && flags != 0 {
+        rawData = func (flags FlagVal) []byte {
             for k := range iCommands {
                 if (iCommands[k].flags & flags) > 0 {
                     return []byte(iCommands[k].command)
@@ -382,31 +461,18 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
         } (flags)
     }
 
-    if len(p) == 0 {
-        return 0, 0, util.RetErrStr("No input data")
+    if len(rawData) == 0 {
+        return nil, util.RetErrStr("No input data")
     }
 
-    /* Check for high-entropy compression inflation and generate a compression stream */
     var (
-        compressionFlag FlagVal = 0
-        txData          []byte = p
-        deflateStatus   error = nil
+        encrypted           []byte
+        processStatus       error
     )
-    if (f.flags & FLAG_COMPRESS) > 0 && len(p) > util.GetCompressedSize(p) &&
-        !((flags & FLAG_TEST_CONNECTION) > 0) /* Compression is not required for testing the circuit */ {
-        compressionFlag |= FLAG_COMPRESS
-
-        txData, deflateStatus = util.CompressStream(txData)
-        if err != nil {
-            panic(deflateStatus)
-        }
+    if encrypted, processStatus = f.compressEncryptData(rawData, flags); processStatus != nil {
+        return nil, processStatus
     }
 
-    f.flags |= FLAG_DIRECTION_TO_SERVER
-    encrypted, err := encryptData(txData, f.secret, FLAG_DIRECTION_TO_SERVER, compressionFlag, f.clientIdString)
-    if err != nil {
-        return 0, 0, err
-    }
     var parmMap = make(map[string]string)
 
     /* key = b64(ClientIdString) value = b64(JSON(<data>)) */
@@ -414,47 +480,36 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
     key := util.B64E([]byte(f.clientIdString))
     parmMap[key] = value
 
-    body, err := sendTransmission(HTTP_VERB, f.inputURI, parmMap, f)
+    return parmMap, nil
+}
+
+func (f *NetChannelClient) compressEncryptData(rawData []byte,
+    flags FlagVal) (encrypted []byte, err error) {
+    err = nil
+
+    /* Check for high-entropy compression inflation and generate a compression stream */
+    var (
+        compressionFlag     FlagVal = 0
+        txData              []byte = rawData
+        deflateStatus       error = nil
+    )
+    if (f.flags & FLAG_COMPRESS) > 0 && len(rawData) > util.GetCompressedSize(rawData) &&
+        !((flags & FLAG_TEST_CONNECTION) > 0) /* Compression is not required for testing the circuit */ {
+        compressionFlag |= FLAG_COMPRESS
+
+        txData, deflateStatus = util.CompressStream(txData)
+        if deflateStatus != nil {
+            return nil, deflateStatus
+        }
+    }
+
+    f.flags |= FLAG_DIRECTION_TO_SERVER
+    encrypted, err = encryptData(txData, f.secret, FLAG_DIRECTION_TO_SERVER, compressionFlag, f.clientIdString)
     if err != nil {
-        return 0,0, err
+        return nil, err
     }
 
-    if len(body) != 0 {
-        /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        clientId, responseData, _, err := decryptData(string(body), f.secret)
-        if err != nil {
-            return len(body), len(p), err
-        }
-        if strings.Compare(clientId, f.clientIdString) != 0 {
-            return len(body), len(p), util.RetErrStr("Invalid server response")
-        }
-
-        f.responseSync.Lock()
-        defer f.responseSync.Unlock()
-
-        var rawData = responseData
-
-        if (f.flags & FLAG_COMPRESS) > 0 && !((flags & FLAG_TEST_CONNECTION) > 0) {
-            var (
-                streamStatus        error = nil
-                decompressed        []byte
-            )
-
-            decompressed, streamStatus = util.DecompressStream(responseData)
-            if streamStatus != nil {
-                return 0, 0, err
-            }
-
-           rawData = decompressed
-        }
-
-        /* Write either the compressed or decompressed stream */
-        if written, err := f.responseData.Write(rawData); err != io.EOF {
-            return len(body), written, err
-        }
-    }
-
-    return len(body), len(p), io.EOF
+    return
 }
 
 func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err error) {
@@ -476,9 +531,80 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     return read, io.EOF
 }
 
-func sendTransmission(verb string, URI string, m map[string]string, client *NetChannelClient) (response []byte, err error) {
+func (f *NetChannelClient) sendTransmission(verb string, URI string,
+    m map[string]string, client *NetChannelClient) (response []byte, err error) {
     client.cancelledSync.Lock()
     defer client.cancelledSync.Unlock()
+
+    var (
+        req             *http.Request
+        reqError        error
+    )
+    if req, reqError = f.generateHTTPheaders(URI, verb, m); reqError != nil {
+        return nil, reqError
+    }
+
+    /* Wait until there is some data to be written, then cancel the HTTP request to get
+     *  data from the server, and create a new request to transmit the new data
+     */
+    var (
+        resp            *http.Response
+        respError       error
+    )
+    if resp, respError = f.cancelHTTPandWrite(f, req); respError != nil {
+        return nil, respError
+    }
+
+    if resp.Status != "200 OK" {
+        return nil, util.RetErrStr("HTTP 200 OK not returned")
+    }
+    defer resp.Body.Close()
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, err
+    }
+    return body, nil
+}
+
+func (f *NetChannelClient) cancelHTTPandWrite(client *NetChannelClient,
+    request *http.Request) (*http.Response, error) {
+
+    respIo := make(chan *http.Response)
+    tr := &http.Transport{}
+    httpClient := &http.Client{Transport: tr}
+    client.request = request
+    client.transport = tr
+    go func (r *http.Request) {
+        var (
+            response *http.Response
+            rxStatus error = nil
+        )
+        if response, rxStatus = httpClient.Do(r); rxStatus != nil {
+            close(respIo)
+            return
+        }
+        respIo <- response
+    } (request)
+
+    resp, ok := <- respIo
+    if !ok {
+        if client.cancelled == true {
+            /* Forced write request */
+            client.transport    = nil
+            client.request      = nil
+            client.cancelled    = false
+            return nil, nil
+        }
+        return nil, util.RetErrStr("Failure in client request")
+    }
+    defer close(respIo)
+
+    return resp, nil
+}
+
+func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
+    m map[string]string) (*http.Request, error) {
 
     form := url.Values{}
     for k, v := range m {
@@ -486,9 +612,13 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
     }
     formEncoded := form.Encode()
 
-    req, err := http.NewRequest(verb /* POST */, URI, strings.NewReader(formEncoded))
-    if err != nil {
-        return nil, err
+    var (
+        req         *http.Request
+        reqStatus   error
+    )
+    if req, reqStatus = http.NewRequest(verb /* POST */, URI,
+        strings.NewReader(formEncoded)); reqStatus != nil {
+        return nil, reqStatus
     }
 
     /*
@@ -508,50 +638,16 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
     req.Header.Set("User-Agent", HTTP_USER_AGENT)
 
     /* Parse the domain/IP */
-    uri, err := url.Parse(URI)
-    if err != nil {
-        return nil, err
+    var (
+        parsedURI   *url.URL
+        parseURL    error
+    )
+    if parsedURI, parseURL = url.Parse(URI); parseURL != nil {
+        return nil, parseURL
     }
-    req.Header.Set("Host", uri.Hostname())
+    req.Header.Set("Host", parsedURI.Hostname())
 
-    respIo := make(chan *http.Response)
-    tr := &http.Transport{}
-    httpClient := &http.Client{Transport: tr}
-    client.request = req
-    client.transport = tr
-    go func (r *http.Request) {
-        var (
-            response *http.Response
-            rxStatus error = nil
-        )
-        if response, rxStatus = httpClient.Do(r); rxStatus != nil {
-            close(respIo)
-            return
-        }
-        respIo <- response
-    } (req)
-
-    resp, ok := <- respIo
-    if !ok {
-        if client.cancelled == true {
-            /* Forced write request */
-            client.transport    = nil
-            client.request      = nil
-            client.cancelled    = false
-            return nil, nil
-        }
-        return nil, util.RetErrStr("Failure in client request")
-    }
-    defer close(respIo)
-
-    if resp.Status != "200 OK" {
-        return nil, util.RetErrStr("HTTP 200 OK not returned")
-    }
-    defer resp.Body.Close()
-
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        return nil, err
-    }
-    return body, nil
+    return req, nil
 }
+
+/* EOF */
