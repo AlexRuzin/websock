@@ -41,7 +41,9 @@ import (
     "github.com/AlexRuzin/util"
 )
 
-func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal, clientId string) (encrypted []byte, err error) {
+func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags FlagVal,
+    clientId string) (encrypted []byte, err error) {
+
     if len(data) == 0 {
         return nil, util.RetErrStr("Invalid parameters for encryptData")
     }
@@ -118,12 +120,12 @@ func encodeKeyValue (high int) string {
     } (high)
 }
 
-func (f *NetChannelClient) checkForKeyCollision(key string, char_set string) (out bool) {
+func (f *NetChannelClient) checkForKeyCollision(key string, charSet string) (out bool) {
     /* FIXME -- this should be consolidated code */
     out = false
-    var keyVector = make([]string, len(char_set))
-    for i := len(char_set) - 1; i >= 0; i -= 1 {
-        keyVector[i] = util.B64E([]byte(string(char_set[i])))
+    var keyVector = make([]string, len(charSet))
+    for i := len(charSet) - 1; i >= 0; i -= 1 {
+        keyVector[i] = util.B64E([]byte(string(charSet[i])))
     }
 
     for i := range keyVector {
