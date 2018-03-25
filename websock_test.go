@@ -95,8 +95,8 @@ const DEFAULT_RX_WAIT_DURATION      time.Duration = 5000 /* milliseconds */
  *   "ModuleName": "websock"
  * }
  */
-const moduleName                    string = "websock" /* Do not change this setting */
-type configInput struct {
+const moduleName =                              "websock" /* Do not change this setting */
+type ConfigInput struct {
     /* Default test mode */
     Server                          bool        `json:"Server"`
 
@@ -130,45 +130,48 @@ type configInput struct {
 }
 
 var (
-    genericConfig                   *configInput = nil
-    mainServer                      *NetChannelService = nil
-    mainClient                      *NetChannelClient = nil
-    defaultConfig                   *string = flag.String("config", JSON_FILENAME,
+    mainConfig                      ConfigInput
+    mainServer                      *NetChannelService
+    mainClient                      *NetChannelClient
+    configFilename                  *string = flag.String("config", JSON_FILENAME,
                                         "Usage -config [filename]")
 )
 func TestMainChannel(t *testing.T) {
     /* Parse config */
-    if _, err := setupJSONconfig(*defaultConfig); err != nil {
-        util.RetErrStr(err.Error())
+    var configStatus error
+    if mainConfig, configStatus = setupJSONconfig(*configFilename); configStatus != nil {
+        util.RetErrStr(configStatus.Error())
     }
 
     /* Debug output if verbosity switch is true */
-    if genericConfig.Verbosity == true {
+    if mainConfig.Verbosity == true {
         printDebugOutput()
     }
 
-    switch genericConfig.Server {
+    switch mainConfig.Server {
     case false: /* Client mode */
-        if _, err := startClientMode(*genericConfig); err != nil {
+        if _, err := startClientMode(mainConfig); err != nil {
             util.RetErrStr(err.Error())
         }
 
         break
     case true: /* Server mode */
-        if _, err := startServerMode(*genericConfig); err != nil {
+        if _, err := startServerMode(mainConfig); err != nil {
             util.RetErrStr(err.Error())
         }
+        mainServer.startListeners(mainServer)
     }
 
     /* Wait forever */
     util.WaitForever()
 }
 
-func startServerMode(config configInput) (*NetChannelService, error) {
-    D("Server is running on localhost, port: " + util.IntToString(int(genericConfig.Port)) +
-        ", on HTTP URI path: " + genericConfig.Path)
+func startServerMode(config ConfigInput) (*NetChannelService, error) {
+    D("Server is running on localhost, port: " + util.IntToString(int(config.Port)) +
+        ", on HTTP URI path: " + config.Path)
 
-    server, err := CreateServer(genericConfig.Path, int16(genericConfig.Port),
+    var createStatus error
+    mainServer, createStatus = CreateServer(config.Path, int16(config.Port),
         /* The below inlines will determine which flags to use based on use input */
         func(useDebug bool) FlagVal {
             if useDebug == true {
@@ -176,36 +179,36 @@ func startServerMode(config configInput) (*NetChannelService, error) {
             }
 
             return 0
-        }(genericConfig.Verbosity) |
+        }(config.Verbosity) |
             func(useEncryption bool) FlagVal {
                 if useEncryption == true {
                     return FLAG_ENCRYPT
                 }
 
                 return 0
-            }(genericConfig.Encryption) |
+            }(config.Encryption) |
             func(useCompression bool) FlagVal {
                 if useCompression == true {
                     return FLAG_COMPRESS
                 }
 
                 return 0
-            }(genericConfig.Compression),
+            }(config.Compression),
         incomingClientHandler)
-    if err != nil {
-        panic(err)
+    if createStatus != nil {
+        util.RetErrStr(createStatus.Error())
     }
-    mainServer = server
 
     return mainServer, nil
 }
 
-func startClientMode(config configInput) (*NetChannelClient, error) {
+func startClientMode(config ConfigInput) (*NetChannelClient, error) {
     var gateURI string = "http://" + config.Domain + ":" +
         util.IntToString(int(config.Port)) + config.Path
     D("Client target URI is: " + gateURI)
 
-    client, err := BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */ ,
+    var buildStatus error
+    mainClient, buildStatus = BuildChannel(gateURI /* Primary URI (scheme + domain + port + path) */ ,
 
         /* The below inlines will determine which flags to use based on use input */
         func(useDebug bool) FlagVal {
@@ -230,14 +233,12 @@ func startClientMode(config configInput) (*NetChannelClient, error) {
                 return 0
             }(config.Compression),
     )
-    if err != nil {
+    if buildStatus != nil {
+        util.RetErrStr(buildStatus.Error())
+    }
+    if err := mainClient.InitializeCircuit(); err != nil {
         util.RetErrStr(err.Error())
     }
-    if err := client.InitializeCircuit(); err != nil {
-        util.RetErrStr(err.Error())
-    }
-
-    mainClient = client
     clientTX(config)
 
     return mainClient, nil
@@ -245,12 +246,12 @@ func startClientMode(config configInput) (*NetChannelClient, error) {
 
 func printDebugOutput() {
     /* It is absolutely required to use encryption, therefore check for this prior to anything futher */
-    if genericConfig.Encryption == false {
+    if mainConfig.Encryption == false {
         panic(errors.New("must use the 'encrypt' flag to 'true'"))
     }
 
-    if genericConfig.Verbosity == true {
-        func(config *configInput) {
+    if mainConfig.Verbosity == true {
+        func(config ConfigInput) {
             switch config.Server {
             case false: /* Client mode */
                 D("We are running in TYPE_CLIENT mode. Default target server is: " + "http://" +
@@ -265,83 +266,66 @@ func printDebugOutput() {
 
             D("Using encryption [forced]: " + strconv.FormatBool(config.Encryption))
             D("Using compression [optional]: " + strconv.FormatBool(config.Compression))
-        }(genericConfig)
+        }(mainConfig)
     }
-    D("Configuration file " + *defaultConfig + " is nominal, proceeding...")
+    D("Configuration file " + *configFilename + " is nominal, proceeding...")
 }
 
-func setupJSONconfig(file string) (configInput, error) {
+func setupJSONconfig(file string) (ConfigInput, error) {
     /* Parse the user input and create a configInput instance */
-    config, _ := func () (*configInput, error) {
-        /* Read in the configuration file `config.json` */
+    var (
+        rawFile             []byte
+        readStatus          error
+    )
+    if rawFile, readStatus = ioutil.ReadFile(file); readStatus != nil {
+        util.RetErrStr(readStatus.Error())
+    }
 
-        rawFile, err := ioutil.ReadFile(*defaultConfig)
-        if err != nil {
-            panic(err)
-        }
+    /*
+     * Build the configInput structure
+     */
+    parseStatus := json.Unmarshal(rawFile, &mainConfig)
+    if parseStatus != nil {
+        util.RetErrStr(parseStatus.Error())
+    }
+    if mainConfig.ModuleName != moduleName {
+        util.RetErrStr("invalid configuration file: " + *configFilename)
+    }
 
-        /*
-         * Build the configInput structure
-         */
-        var (
-            output                  configInput
-            parseStatus             error = nil
-        )
-        parseStatus = json.Unmarshal(rawFile, &output)
-        if parseStatus != nil {
-            panic(parseStatus)
-        }
-        if output.ModuleName != moduleName {
-            panic(util.RetErrStr("invalid configuration file: " + *defaultConfig))
-        }
+    /*
+     * Check configuration sanity
+     */
+    if mainConfig.ServerTXTimeMax < mainConfig.ServerTXTimeMin ||
+        mainConfig.ServerTXDataMax < mainConfig.ServerTXDataMin ||
+        mainConfig.ClientTXDataMax < mainConfig.ClientTXDataMin ||
+        mainConfig.ClientTXTimeMax < mainConfig.ClientTXTimeMin {
 
-        /*
-         * Check configuration sanity
-         */
-        if output.ServerTXTimeMax < output.ServerTXTimeMin ||
-            output.ServerTXDataMax < output.ServerTXDataMin ||
-            output.ClientTXDataMax < output.ClientTXDataMin ||
-            output.ClientTXTimeMax < output.ClientTXTimeMin {
+        util.RetErrStr("invalid configuration file, data/timeout ranges are not configured properly")
+    }
 
-            panic(util.RetErrStr("invalid configuration file, data/timeout ranges are not configured properly"))
-        }
-
-        return &output, nil
-    } ()
-    genericConfig = config
-
-    return genericConfig, nil
+    return mainConfig, nil
 }
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
     D("Initial connect from client " + client.ClientIdString)
 
-    serverTX(*genericConfig)
-
-    /*
-     * Read from the client socket
-     */
-    go func (client *NetInstance) {
-        for {
-            if len, rxStatus := client.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
-                rawData := make([]byte, len)
-                client.Read(rawData)
-                D("server received (from " + client.ClientIdString + ") [size: " +
-                    util.IntToString(len) + "] " + string(rawData))
-            }
-        }
-    } (client)
+    server.clientMap[client.ClientIdString] = client
+    serverTX(mainConfig)
 
     return nil
 }
 
-func clientTX(config configInput) {
+func clientTX(config ConfigInput) {
     /*
      * Transmit data
      */
     func () {
         if config.ClientTX == true {
-            go func(config configInput) {
+            go func(config ConfigInput) {
+                if mainClient.connected == false {
+                    util.RetErrStr("Failed to connect to server")
+                }
+
                 var transmitStatus error = nil
                 for {
                     if config.ClientTXTimeMin == config.ClientTXTimeMax {
@@ -363,7 +347,7 @@ func clientTX(config configInput) {
     } ()
 
     /* Receive data */
-    go func (config configInput) {
+    go func (config ConfigInput) {
         for {
             if len, rxStatus := mainClient.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
                 rawData := make([]byte, len)
@@ -374,11 +358,11 @@ func clientTX(config configInput) {
     } (config)
 }
 
-func serverTX(config configInput) {
+func serverTX(config ConfigInput) {
     /* Transmit data periodically */
     if config.ServerTX == true {
-        go func (config configInput) {
-            var transmitStatus error = nil
+        go func (config ConfigInput) {
+            var transmitStatus error
             for {
                 if config.ServerTXTimeMin == config.ServerTXTimeMax {
                     util.Sleep(time.Duration(config.ServerTXTimeMin) * time.Millisecond)
@@ -387,11 +371,11 @@ func serverTX(config configInput) {
                     util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin),
                         int(config.ServerTXTimeMax))) * time.Millisecond)
                 }
-
                 transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
                     config.ServerTXDataStatic, handlerServerTx)
                 if transmitStatus != nil {
-                    panic(transmitStatus)
+                    util.RetErrStr(transmitStatus.Error())
+
                 }
             }
         } (config)
@@ -460,7 +444,7 @@ func handlerServerTx(p []byte) error {
 }
 
 func D(debug string) {
-    if genericConfig.Verbosity == true {
+    if mainConfig.Verbosity == true {
         util.DebugOut("[+] " + debug)
     }
 }
