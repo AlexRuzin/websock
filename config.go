@@ -28,6 +28,11 @@ import (
 )
 
 /*
+ * The object representing the internal config
+ */
+var masterConfig *ProtocolConfig
+
+/*
 *
 * The default configuration file is base32 encrypted, and stored in a buffer here.
 *  To modify the config, decode the config, edit it, and encode it again
@@ -87,6 +92,12 @@ type ProtocolConfig struct {
     C2ResponseTimeout   uint16      `json:"c2_response_timeout"`
 
     /*
+     *
+     */
+    PostBodyValueLength int         `json:"post_body_value_length"`
+    PostBodyKeyLength   int         `json:"post_body_key_length"`
+
+    /*
      * The length of the POST request parameter names
      */
     PostBodyJunkLen     uint16      `json:"post_body_junk_length"`
@@ -134,18 +145,17 @@ type ProtocolConfig struct {
  * This method modifies the masterConfig global variable, instantiating the
  *  protocolConfig structure
  */
-func ParseConfig(b32Encoded string) (*ProtocolConfig, error) {
-    rawJSON, err := base32.StdEncoding.DecodeString(b32Encoded)
+func ParseConfig() (error) {
+    rawJSON, err := base32.StdEncoding.DecodeString(MAIN_CONFIG_B32_ENCODED)
     if err != nil {
-        return nil, err
+        return err
     }
 
-    var tmp ProtocolConfig
-    if err = json.Unmarshal(rawJSON, &tmp); err != nil {
-        return nil, err
+    if err = json.Unmarshal(rawJSON, masterConfig); err != nil {
+        return err
     }
 
-    return &tmp, nil
+    return nil
 }
 
 /*
