@@ -1,3 +1,16 @@
 .idea
 test_db.db
 config.remote.client.json
+start_remote_server.sh
+On branch master
+Your branch is up-to-date with 'origin/master'.
+Changes not staged for commit:
+	modified:   .gitignore
+	modified:   config.json
+	deleted:    config.local.server.json
+
+Untracked files:
+	config,json
+	config.remote.server.json
+
+no changes added to commit

@@ -1,22 +1,22 @@
 {
-  "Server": true,
+  "Server": false,
   "Verbosity": true,
   "Encryption": true,
   "Compression": true,
 
-  "Port": 80,
+  "Port": 5555,
   "Path": "/websock.php",
   "Domain": "127.0.0.1",
 
   "ClientTX": true,
-  "ClientTXTimeMin": 2000,
-  "ClientTXTimeMax": 2000,
+  "ClientTXTimeMin": 5000,
+  "ClientTXTimeMax": 7000,
   "ClientTXDataMin": 16,
   "ClientTXDataMax": 64,
   "ClientTXDataStatic": true,
 
-  "ServerTX": true,
-  "ServerTXTimeMin": 2000,
+  "ServerTX": false,
+  "ServerTXTimeMin": 500,
   "ServerTXTimeMax": 2000,
   "ServerTXDataMin": 16,
   "ServerTXDataMax": 64,

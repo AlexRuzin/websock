@@ -4,7 +4,7 @@
   "Encryption": true,
   "Compression": true,
 
-  "Port": 5555,
+  "Port": 2222,
   "Path": "/websock.php",
   "Domain": "127.0.0.1",
 
@@ -15,7 +15,7 @@
   "ClientTXDataMax": 64,
   "ClientTXDataStatic": true,
 
-  "ServerTX": true,
+  "ServerTX": false,
   "ServerTXTimeMin": 100,
   "ServerTXTimeMax": 10000,
   "ServerTXDataMin": 16,
