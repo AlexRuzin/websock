@@ -107,7 +107,7 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
     return channelService, nil
 }
 
-func (f *NetChannelService) startListeners(server *NetChannelService) {
+func (f *NetChannelService) startListeners() {
     go func (svc *NetChannelService) {
         var wg sync.WaitGroup
         wg.Add(1)
@@ -128,17 +128,17 @@ func (f *NetChannelService) startListeners(server *NetChannelService) {
             svc.clientSync.Unlock()
             client.connected = true
         }
-    } (server)
+    } (f)
 
     go func(svc *NetChannelService) {
         /* FIXME -- find a way of closing this thread once CloseService() is invoked */
-        http.HandleFunc(server.pathGate, handleClientRequest)
+        http.HandleFunc(f.pathGate, handleClientRequest)
 
         svc.sendDebug("Handling request for path :" + svc.pathGate)
-        if err := http.ListenAndServe(":" + util.IntToString(int(server.port)),nil); err != nil {
+        if err := http.ListenAndServe(":" + util.IntToString(int(f.port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd.")
         }
-    } (server)
+    } (f)
 }
 
 func (f *NetChannelService) closeClient(client *NetInstance) {

@@ -242,9 +242,11 @@ func (f *NetChannelClient) generateCurvePostRequest() (
     /*
      * Generate the ECDH keys based on the EllipticP384 Curve/create keypair
      */
-    var publicKey crypto.PublicKey
+    var (
+        publicKey crypto.PublicKey
+        keypairStatus error = nil
+    )
     curve := ecdh.NewEllipticECDH(elliptic.P384())
-    var keypairStatus error = nil
     privateKey, publicKey, keypairStatus = curve.GenerateKey(rand.Reader)
     if keypairStatus != nil {
         return nil, nil, nil, keypairStatus

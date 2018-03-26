@@ -148,18 +148,18 @@ func TestMainChannel(t *testing.T) {
         printDebugOutput()
     }
 
+    var err error
     switch mainConfig.Server {
     case false: /* Client mode */
-        if _, err := startClientMode(mainConfig); err != nil {
+        if mainClient, err = startClientMode(mainConfig); err != nil {
             util.RetErrStr(err.Error())
         }
-
         break
     case true: /* Server mode */
-        if _, err := startServerMode(mainConfig); err != nil {
+        if mainServer, err = startServerMode(mainConfig); err != nil {
             util.RetErrStr(err.Error())
         }
-        mainServer.startListeners(mainServer)
+        mainServer.startListeners()
     }
 
     /* Wait forever */
@@ -402,7 +402,6 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
     } else {
         rawData = []byte(util.RandomString(rawLength))
     }
-    D("sent [" + util.IntToString(len(rawData)) + " bytes]: " + string(rawData))
 
     /* Invoke the transmit method */
     var txStatus = handler(rawData)
@@ -434,6 +433,7 @@ func handlerServerTx(p []byte) error {
         if err != io.EOF {
             return err
         }
+        D("sent [" + util.IntToString(len(p)) + " bytes]: " + string(p))
 
         if txLen != len(p) {
             return util.RetErrStr("handlerServerTx() reports unexpected EOF in write stream")

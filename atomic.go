@@ -289,21 +289,21 @@ func (f *NetChannelClient) initializePKE() (error) {
     }
 
     /* Perform HTTP TX, receive the public key from the server */
-    body, txErr := f.sendTransmission(HTTP_VERB /* POST */, f.inputURI, request, f)
-    if txErr != nil && txErr != io.EOF {
-        return txErr
+    var body []byte
+    body, initStatus = f.sendTransmission(HTTP_VERB /* POST */, f.inputURI, request)
+    if initStatus != nil && initStatus != io.EOF {
+        return initStatus
     }
 
     /*
      * Decode the public key returned by the server and create a secret key
      */
-    var genStatus               error = nil
-    f.secret, genStatus = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve)
-    if genStatus != nil {
-        return genStatus
+    f.secret, initStatus = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve)
+    if initStatus != nil {
+        return initStatus
     }
 
-    if (f.flags & FLAG_DEBUG) > 1 {
+    if (f.flags & FLAG_DEBUG) > 0 {
         util.DebugOut("Client-side secret:")
         util.DebugOutHex(f.secret)
     }
@@ -387,13 +387,15 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
     defer f.requestSync.Unlock()
 
     /* Generate parameters */
-    parmMap, err := f.generatePOSTrequest(rawData, flags)
+    var parmMap = make(map[string]string)
+    parmMap, err = f.generatePOSTrequest(rawData, flags)
     if err != nil {
         util.RetErrStr(err.Error())
     }
 
     /* Transmit */
-    body, err := f.sendTransmission(HTTP_VERB, f.inputURI, parmMap, f)
+    var body []byte
+    body, err = f.sendTransmission(HTTP_VERB, f.inputURI, parmMap)
     if err != nil {
         return 0,0, err
     }
@@ -532,15 +534,16 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
 }
 
 func (f *NetChannelClient) sendTransmission(verb string, URI string,
-    m map[string]string, client *NetChannelClient) (response []byte, err error) {
-    client.cancelledSync.Lock()
-    defer client.cancelledSync.Unlock()
+    params map[string]string) ([]byte, error) {
+
+    f.cancelledSync.Lock()
+    defer f.cancelledSync.Unlock()
 
     var (
         req             *http.Request
         reqError        error
     )
-    if req, reqError = f.generateHTTPheaders(URI, verb, m); reqError != nil {
+    if req, reqError = f.generateHTTPheaders(URI, verb, params); reqError != nil {
         return nil, reqError
     }
 
@@ -551,7 +554,7 @@ func (f *NetChannelClient) sendTransmission(verb string, URI string,
         resp            *http.Response
         respError       error
     )
-    if resp, respError = f.cancelHTTPandWrite(f, req); respError != nil {
+    if resp, respError = f.cancelHTTPandWrite(req); respError != nil {
         return nil, respError
     }
 
@@ -567,33 +570,36 @@ func (f *NetChannelClient) sendTransmission(verb string, URI string,
     return body, nil
 }
 
-func (f *NetChannelClient) cancelHTTPandWrite(client *NetChannelClient,
-    request *http.Request) (*http.Response, error) {
+func (f *NetChannelClient) cancelHTTPandWrite(req *http.Request) (*http.Response, error) {
+    var (
+        respIo              = make(chan *http.Response)
+        httpClient          *http.Client
+    )
 
-    respIo := make(chan *http.Response)
-    tr := &http.Transport{}
-    httpClient := &http.Client{Transport: tr}
-    client.request = request
-    client.transport = tr
+    tr                      := &http.Transport{}
+    httpClient              = &http.Client{Transport: tr}
+    f.request               = req
+    f.transport             = tr
+
     go func (r *http.Request) {
         var (
-            response *http.Response
-            rxStatus error = nil
+            response        *http.Response
+            rxStatus        error = nil
         )
         if response, rxStatus = httpClient.Do(r); rxStatus != nil {
             close(respIo)
             return
         }
         respIo <- response
-    } (request)
+    } (req)
 
     resp, ok := <- respIo
     if !ok {
-        if client.cancelled == true {
+        if f.cancelled == true {
             /* Forced write request */
-            client.transport    = nil
-            client.request      = nil
-            client.cancelled    = false
+            f.transport    = nil
+            f.request      = nil
+            f.cancelled    = false
             return nil, nil
         }
         return nil, util.RetErrStr("Failure in client request")
