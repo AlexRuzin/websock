@@ -78,7 +78,6 @@ type NetInstance struct {
 }
 
 var (
-    clientIO                chan *NetInstance
     channelService          *NetChannelService
 )
 func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
@@ -94,14 +93,14 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
     }
 
     channelService = &NetChannelService{
-        IncomingHandler:    handler,
-        port:               port,
-        Flags:              flags,
-        pathGate:           pathGate,
+        IncomingHandler: handler,
+        port:            port,
+        Flags:           flags,
+        pathGate:        pathGate,
 
         /* Map consists of key: ClientId (string) and value: *NetInstance object */
-        clientMap:          make(map[string]*NetInstance),
-        clientIO:           make(chan *NetInstance),
+        clientMap: make(map[string]*NetInstance),
+        clientIO:  make(chan *NetInstance),
     }
 
     return channelService, nil
@@ -128,7 +127,7 @@ func (f *NetChannelService) startListeners() {
             svc.clientSync.Unlock()
             client.connected = true
         }
-    } (f)
+    } (channelService)
 
     go func(svc *NetChannelService) {
         /* FIXME -- find a way of closing this thread once CloseService() is invoked */
@@ -138,7 +137,7 @@ func (f *NetChannelService) startListeners() {
         if err := http.ListenAndServe(":" + util.IntToString(int(f.port)),nil); err != nil {
             util.ThrowN("panic: Failure in loading httpd.")
         }
-    } (f)
+    } (channelService)
 }
 
 func (f *NetChannelService) closeClient(client *NetInstance) {
@@ -148,13 +147,13 @@ func (f *NetChannelService) closeClient(client *NetInstance) {
 }
 
 func (f *NetChannelService) CloseService() {
-    if clientIO != nil {
-        close(clientIO)
+    if f.clientIO != nil {
+        close(f.clientIO)
     }
 }
 
-func (f *NetInstance) Close() {
-    channelService.closeClient(f)
+func (f *NetInstance) Close(client *NetInstance) {
+    channelService.closeClient(client)
 }
 
 /*
@@ -211,7 +210,7 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
 
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
-    if clientIO == nil {
+    if channelService.clientIO == nil {
         util.RetErrStr("Cannot handle request without initializing processor")
     }
     defer reader.Body.Close()
@@ -309,7 +308,7 @@ func handleNewClient(marshalledKey string, reader *http.Request, writer *http.Re
     }
 
     /* Send the signal to startListeners() */
-    clientIO <- instance
+    channelService.clientIO <- instance
 
     return nil
 }

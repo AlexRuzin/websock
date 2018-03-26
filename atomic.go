@@ -290,7 +290,7 @@ func (f *NetChannelClient) initializePKE() (error) {
 
     /* Perform HTTP TX, receive the public key from the server */
     var body []byte
-    body, initStatus = f.sendTransmission(HTTP_VERB /* POST */, f.inputURI, request)
+    body, initStatus = sendTransmission(f, HTTP_VERB /* POST */, f.inputURI, request)
     if initStatus != nil && initStatus != io.EOF {
         return initStatus
     }
@@ -395,7 +395,7 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
 
     /* Transmit */
     var body []byte
-    body, err = f.sendTransmission(HTTP_VERB, f.inputURI, parmMap)
+    body, err = sendTransmission(f, HTTP_VERB, f.inputURI, parmMap)
     if err != nil {
         return 0,0, err
     }
@@ -533,17 +533,16 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     return read, io.EOF
 }
 
-func (f *NetChannelClient) sendTransmission(verb string, URI string,
-    params map[string]string) ([]byte, error) {
+func sendTransmission(client *NetChannelClient, verb string, URI string, params map[string]string) ([]byte, error) {
 
-    f.cancelledSync.Lock()
-    defer f.cancelledSync.Unlock()
+    client.cancelledSync.Lock()
+    defer client.cancelledSync.Unlock()
 
     var (
         req             *http.Request
         reqError        error
     )
-    if req, reqError = f.generateHTTPheaders(URI, verb, params); reqError != nil {
+    if req, reqError = client.generateHTTPheaders(URI, verb, params); reqError != nil {
         return nil, reqError
     }
 
@@ -554,7 +553,7 @@ func (f *NetChannelClient) sendTransmission(verb string, URI string,
         resp            *http.Response
         respError       error
     )
-    if resp, respError = f.cancelHTTPandWrite(req); respError != nil {
+    if resp, respError = client.cancelHTTPandWrite(req); respError != nil {
         return nil, respError
     }
 
