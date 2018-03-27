@@ -50,7 +50,7 @@ func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags 
     err = util.RetErrStr("encryptData: Unknown error")
 
     /* Transmission object */
-    tx := &TransferUnit{
+    tx := &transferUnit{
         ClientID:           clientId,
         TimeStamp: func () string {
             return time.Now().String()
@@ -65,7 +65,7 @@ func encryptData(data []byte, secret []byte, directionFlags FlagVal, otherFlags 
     }
     copy(tx.Data, data)
 
-    txStream, err := func(tx TransferUnit) ([]byte, error) {
+    txStream, err := func(tx transferUnit) ([]byte, error) {
         b := new(bytes.Buffer)
         e := gob.NewEncoder(b)
         if err := e.Encode(tx); err != nil {
@@ -263,26 +263,26 @@ func (f *NetChannelClient) generateCurvePostRequest() (
 
     /* generate fake key/value pools */
     outMap := make(map[string]string)
-    numOfParameters := util.RandInt(3, POST_BODY_JUNK_MAX_PARAMETERS)
+    numOfParameters := util.RandInt(3, int(masterConfig.PostBodyJunkLen) + int(masterConfig.PostBodyJunkLenOff))
 
     magicNumber := numOfParameters / 2
     for i := numOfParameters; i != 0; i -= 1 {
         var pool, key string
-        if POST_BODY_VALUE_LEN != -1 {
-            pool = encodeKeyValue(POST_BODY_VALUE_LEN)
+        if masterConfig.PostBodyValueLength != -1 {
+            pool = encodeKeyValue(masterConfig.PostBodyValueLength)
         } else {
             pool = encodeKeyValue(len(string(postPool)) * 2)
         }
-        key = encodeKeyValue(POST_BODY_KEY_LEN)
+        key = encodeKeyValue(masterConfig.PostBodyKeyLength)
 
         /* This value must not be any of the b64 encoded POST_BODY_KEY_CHARSET values -- true == collision */
-        if collision := f.checkForKeyCollision(key, POST_BODY_KEY_CHARSET); collision == true {
+        if collision := f.checkForKeyCollision(key, masterConfig.PostBodyKeyCharset); collision == true {
             i += 1 /* Fix the index */
             continue
         }
 
         if i == magicNumber {
-            parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
+            parameter := string(masterConfig.PostBodyKeyCharset[util.RandInt(0, len(masterConfig.PostBodyKeyCharset))])
             outMap[util.B64E([]byte(parameter))] = string(postPool)
             continue
         }
@@ -296,7 +296,7 @@ func (f *NetChannelClient) generateCurvePostRequest() (
     return
 }
 
-func decryptData(b64Encoded string, secret []byte) (clientId string, rawData []byte, txUnit *TransferUnit, status error) {
+func decryptData(b64Encoded string, secret []byte) (clientId string, rawData []byte, txUnit *transferUnit, status error) {
     status      = util.RetErrStr("decryptData: Unknown error")
     clientId    = ""
     rawData     = nil
@@ -315,8 +315,8 @@ func decryptData(b64Encoded string, secret []byte) (clientId string, rawData []b
     }
 
     var decodeStatus error = nil
-    txUnit, decodeStatus = func(raw []byte) (*TransferUnit, error) {
-        output := new(TransferUnit)
+    txUnit, decodeStatus = func(raw []byte) (*transferUnit, error) {
+        output := new(transferUnit)
 
         p := &bytes.Buffer{}
         p.Write(raw)

@@ -43,7 +43,7 @@ import (
  ************************************************************/
 type FlagVal int
 const (
-    FLAG_DO_NOT_USE                 FlagVal = 1 << iota /* Flip up to 32 bits -- placeholder*/
+    FLAG_DO_NOT_USE     FlagVal = 1 << iota /* Flip up to 32 bits -- placeholder*/
     FLAG_DEBUG
     FLAG_ENCRYPT
     FLAG_COMPRESS
@@ -55,22 +55,9 @@ const (
 )
 
 type internalCommands struct {
-    flags FlagVal
+    flags   FlagVal
     command string
     comment string
-}
-var iCommands = []internalCommands{
-    {flags: FLAG_TEST_CONNECTION,
-     command: TEST_CONNECTION_DATA,
-     comment: "Tests the connection after key negotiation"},
-
-    {flags: FLAG_CHECK_STREAM_DATA,
-     command: CHECK_STREAM_DATA,
-     comment: "Checks the server for any inbound data"},
-
-    {flags: FLAG_TERMINATE_CONNECTION,
-     command: TERMINATE_CONNECTION_DATA,
-     comment: "Terminates the connection between the controller and atom"},
 }
 
 type NetChannelClient struct {
@@ -104,7 +91,7 @@ type NetChannelClient struct {
     cancelledSync       sync.Mutex
 }
 
-type TransferUnit struct {
+type transferUnit struct {
     GlobalIP            string
     LocalIP             string
     TimeStamp           string
@@ -113,6 +100,24 @@ type TransferUnit struct {
     DecryptedSum        string
     Direction           FlagVal
     Flags               FlagVal
+}
+
+func (f *NetChannelClient) Read(p []byte) (read int, err error) {
+    read, err = f.readInternal(p)
+    if err != io.EOF {
+        return 0, err
+    }
+
+    return
+}
+
+func (f *NetChannelClient) Write(p []byte) (written int, err error) {
+    written, err = f.writeInternal(p)
+    if err != io.EOF {
+        return 0, err
+    }
+
+    return
 }
 
 func (f *NetChannelClient) Len() int {
@@ -161,24 +166,6 @@ func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen 
     return
 }
 
-func (f *NetChannelClient) Read(p []byte) (read int, err error) {
-    read, err = f.readInternal(p)
-    if err != io.EOF {
-        return 0, err
-    }
-
-    return
-}
-
-func (f *NetChannelClient) Write(p []byte) (written int, err error) {
-    written, err = f.writeInternal(p)
-    if err != io.EOF {
-        return 0, err
-    }
-
-    return
-}
-
 func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
     if (flags & FLAG_DO_NOT_USE) == 1 {
         return nil, util.RetErrStr("Invalid flag: FLAG_DO_NOT_USE")
@@ -188,7 +175,15 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         return nil, util.RetErrStr("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
     }
 
-    if testCharSetPKE(POST_BODY_KEY_CHARSET) == false {
+    /*
+     * Parse the primary configuration and set it as a reference to masterConfig
+     */
+    var configParseStatus error
+    if configParseStatus = ParseConfig(); configParseStatus != nil {
+        return nil, configParseStatus
+    }
+
+    if testCharSetPKE(masterConfig.PostBodyKeyCharset) == false {
         return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
     }
 
@@ -228,6 +223,8 @@ func (f *NetChannelClient) InitializeCircuit() error {
     if pkeStatus := f.initializePKE(); pkeStatus != nil {
         return pkeStatus
     }
+
+    f.connected = true
 
     /*
      * Test the circuit
@@ -290,7 +287,7 @@ func (f *NetChannelClient) initializePKE() (error) {
 
     /* Perform HTTP TX, receive the public key from the server */
     var body []byte
-    body, initStatus = sendTransmission(f, HTTP_VERB /* POST */, f.inputURI, request)
+    body, initStatus = sendTransmission(f, masterConfig.HTTPVerb/* POST */, f.inputURI, request)
     if initStatus != nil && initStatus != io.EOF {
         return initStatus
     }
@@ -355,7 +352,7 @@ func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
 }
 
 func (f *NetChannelClient) testCircuit() error {
-    if _, _, err := f.writeStream(nil, FLAG_TEST_CONNECTION); err != nil {
+    if _, _, err := f.writeStream(nil, FLAG_TEST_CONNECTION); err != io.EOF {
         return err
     }
 
@@ -365,16 +362,15 @@ func (f *NetChannelClient) testCircuit() error {
 
     var responseData = make([]byte, f.responseData.Len())
     read, err := f.readStream(responseData, FLAG_TEST_CONNECTION)
-    if err != io.EOF || read != len(TEST_CONNECTION_DATA) {
+    if err != io.EOF || read != len(masterConfig.TestStream) {
         return util.RetErrStr("testCircuit() invalid response from server side")
     }
 
     if !util.IsAsciiPrintable(string(responseData)) ||
-        strings.Compare(string(responseData), TEST_CONNECTION_DATA) != 0 {
+        strings.Compare(string(responseData), masterConfig.TestStream) != 0 {
         return util.RetErrStr("testCircuit() data corruption from server side")
     }
 
-    f.connected = true
     return nil
 }
 
@@ -395,7 +391,7 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
 
     /* Transmit */
     var body []byte
-    body, err = sendTransmission(f, HTTP_VERB, f.inputURI, parmMap)
+    body, err = sendTransmission(f, masterConfig.HTTPVerb, f.inputURI, parmMap)
     if err != nil {
         return 0,0, err
     }
@@ -451,6 +447,17 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
 }
 
 func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (map[string]string, error) {
+    var iCommands = []internalCommands{
+        {flags: FLAG_TEST_CONNECTION,
+            command: masterConfig.TestStream},
+
+        {flags: FLAG_CHECK_STREAM_DATA,
+            command: masterConfig.CheckStream},
+
+        {flags: FLAG_TERMINATE_CONNECTION,
+            command: masterConfig.TermConnect},
+    }
+
     /* Internal commands are based on the FlagVal bit flag */
     if len(rawData) == 0 && flags != 0 {
         rawData = func (flags FlagVal) []byte {
@@ -556,6 +563,9 @@ func sendTransmission(client *NetChannelClient, verb string, URI string, params 
     if resp, respError = client.cancelHTTPandWrite(req); respError != nil {
         return nil, respError
     }
+    if resp == nil {
+        return nil, util.RetErrStr("sendTransmission() reports that the response buffer is nil")
+    }
 
     if resp.Status != "200 OK" {
         return nil, util.RetErrStr("HTTP 200 OK not returned")
@@ -631,7 +641,7 @@ func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
      *
      *  Most common ever Content-Type
      */
-    req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
+    req.Header.Set("Content-Type", masterConfig.ContentType)
     req.Header.Set("Connection", "close")
 
     /*
@@ -640,15 +650,15 @@ func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
      *
      * Most common ever UA
      */
-    req.Header.Set("User-Agent", HTTP_USER_AGENT)
+    req.Header.Set("User-Agent", masterConfig.UserAgent)
 
-    /* Parse the domain/IP */
+    /* Set the domain/IP */
     var (
         parsedURI   *url.URL
-        parseURL    error
+        parseError  error
     )
-    if parsedURI, parseURL = url.Parse(URI); parseURL != nil {
-        return nil, parseURL
+    if parsedURI, parseError = url.Parse(URI); parseError != nil {
+        return nil, parseError
     }
     req.Header.Set("Host", parsedURI.Hostname())
 
