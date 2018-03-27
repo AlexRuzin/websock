@@ -55,9 +55,18 @@ type NetChannelService struct {
     port                    int16
     pathGate                string
     clientMap               map[string]*NetInstance
-    clientIO                chan *NetInstance
     clientSync              sync.Mutex
 }
+
+/*
+ * Global object representing the service instance
+ */
+var channelService          *NetChannelService
+
+/*
+ * Channel for inbound clients
+ */
+var clientIO                = make(chan *NetInstance)
 
 type NetInstance struct {
     /* Unique identifier that represents the client connection */
@@ -77,11 +86,6 @@ type NetInstance struct {
     RequestURI              string
 }
 
-/*
- * The main object representing the service functionality
- */
-var channelService          *NetChannelService
-
 func CreateServer(pathGate string, port int16, flags FlagVal, handler func(client *NetInstance,
     server *NetChannelService) error) (*NetChannelService, error) {
 
@@ -98,7 +102,7 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
         return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
     }
 
-    channelService = &NetChannelService{
+    var server = &NetChannelService{
         IncomingHandler: handler,
         port:            port,
         Flags:           flags,
@@ -106,44 +110,14 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
 
         /* Map consists of key: ClientId (string) and value: *NetInstance object */
         clientMap: make(map[string]*NetInstance),
-        clientIO:  make(chan *NetInstance),
     }
+    channelService = server
 
-    return channelService, nil
-}
+    /* Start the inbound/outbound listener threads */
+    util.Sleep(100 * time.Millisecond)
+    server.startListeners()
 
-func (f *NetChannelService) startListeners() {
-    go func (svc *NetChannelService) {
-        var wg sync.WaitGroup
-        wg.Add(1)
-
-        for {
-            client, ok := <- svc.clientIO
-            if !ok {
-                break /* Close the processor */
-            }
-
-            svc.clientSync.Lock()
-
-            svc.clientMap[client.ClientIdString] = client
-            if err := svc.IncomingHandler(client, svc); err != nil {
-                svc.closeClient(client)
-            }
-
-            svc.clientSync.Unlock()
-            client.connected = true
-        }
-    } (channelService)
-
-    go func(svc *NetChannelService) {
-        /* FIXME -- find a way of closing this thread once CloseService() is invoked */
-        http.HandleFunc(f.pathGate, handleClientRequest)
-
-        svc.sendDebug("Handling request for path :" + svc.pathGate)
-        if err := http.ListenAndServe(":" + util.IntToString(int(f.port)),nil); err != nil {
-            util.ThrowN("panic: Failure in loading httpd.")
-        }
-    } (channelService)
+    return server, nil
 }
 
 func (f *NetChannelService) closeClient(client *NetInstance) {
@@ -153,13 +127,13 @@ func (f *NetChannelService) closeClient(client *NetInstance) {
 }
 
 func (f *NetChannelService) CloseService() {
-    if f.clientIO != nil {
-        close(f.clientIO)
+    if clientIO != nil {
+        close(clientIO)
     }
 }
 
 func (f *NetInstance) Close(client *NetInstance) {
-    channelService.closeClient(client)
+    f.service.closeClient(client)
 }
 
 /*
@@ -214,9 +188,43 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
     return
 }
 
+func (f *NetChannelService) startListeners() {
+    go func (svc *NetChannelService) {
+        var wg sync.WaitGroup
+        wg.Add(1)
+
+        for {
+            client, ok := <- clientIO
+            if !ok {
+                break /* Close the processor */
+            }
+
+            svc.clientSync.Lock()
+
+            svc.clientMap[client.ClientIdString] = client
+            if err := svc.IncomingHandler(client, svc); err != nil {
+                svc.closeClient(client)
+            }
+
+            svc.clientSync.Unlock()
+            client.connected = true
+        }
+    } (f)
+
+    go func(svc *NetChannelService) {
+        /* FIXME -- find a way of closing this thread once CloseService() is invoked */
+        http.HandleFunc(svc.pathGate, handleClientRequest)
+
+        svc.sendDebug("Handling request for path :" + svc.pathGate)
+        if err := http.ListenAndServe(":" + util.IntToString(int(f.port)),nil); err != nil {
+            util.ThrowN("panic: Failure in loading httpd.")
+        }
+    } (f)
+}
+
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
-    if channelService.clientIO == nil {
+    if clientIO == nil {
         util.RetErrStr("Cannot handle request without initializing processor")
     }
     defer reader.Body.Close()
@@ -314,20 +322,20 @@ func handleNewClient(marshalledKey string, reader *http.Request, writer *http.Re
     }
 
     /* Send the signal to startListeners() */
-    channelService.clientIO <- instance
+    clientIO <- instance
 
     return nil
 }
 
 func parseExistingClient(reader *http.Request, writer *http.ResponseWriter) {
     /*
-  * Parameter for key negotiation does not exist. This implies that either someone is not using
-  *  the server in the designed fashion, or that there is another command request coming from
-  *  and existing client. Here we verify if the client exists.
-  *
-  * If it's a command, then there should be only one parameter, which is:
-  *  b64(ClientIdString) = <command>
-  */
+     * Parameter for key negotiation does not exist. This implies that either someone is not using
+     *  the server in the designed fashion, or that there is another command request coming from
+     *  and existing client. Here we verify if the client exists.
+     *
+     * If it's a command, then there should be only one parameter, which is:
+     *  b64(ClientIdString) = <command>
+     */
     key := reader.Form
     if key == nil {
         return
@@ -445,7 +453,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
                 otherFlags FlagVal = 0
             )
 
-            if (channelService.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > util.GetCompressedSize(outputStream) {
+            if (f.service.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > util.GetCompressedSize(outputStream) {
                 otherFlags |= FLAG_COMPRESS
                 var streamStatus error = nil
                 outputStream, streamStatus = util.CompressStream(outputStream)
@@ -487,7 +495,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
 
         var outputStream []byte = f.clientTX.Bytes()
 
-        if (channelService.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > util.GetCompressedSize(outputStream) {
+        if (f.service.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > util.GetCompressedSize(outputStream) {
             otherFlags |= FLAG_COMPRESS
 
             var streamStatus error = nil
