@@ -159,7 +159,6 @@ func TestMainChannel(t *testing.T) {
         if mainServer, err = startServerMode(mainConfig); err != nil {
             util.RetErrStr(err.Error())
         }
-        mainServer.startListeners()
     }
 
     /* Wait forever */
