@@ -263,7 +263,11 @@ func (f *NetChannelClient) generateCurvePostRequest() (
 
     /* generate fake key/value pools */
     outMap := make(map[string]string)
-    numOfParameters := util.RandInt(3, int(masterConfig.PostBodyJunkLen) + int(masterConfig.PostBodyJunkLenOff))
+    const minParmCount = 3
+    if minParmCount >= int(masterConfig.PostBodyJunkLen) + int(masterConfig.PostBodyJunkLenOff) {
+        return nil, nil, nil, util.RetErrStr("invalid value for PostBodyJunkLen and/or PostBodyJunkLenOff")
+    }
+    numOfParameters := util.RandInt(minParmCount, int(masterConfig.PostBodyJunkLen) + int(masterConfig.PostBodyJunkLenOff))
 
     magicNumber := numOfParameters / 2
     for i := numOfParameters; i != 0; i -= 1 {
