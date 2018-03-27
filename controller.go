@@ -255,7 +255,9 @@ func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
     /*
      * Create a new client
      */
-    handleNewClient(*marshalledPublicClientKey, reader, &writer)
+    if err := handleNewClient(*marshalledPublicClientKey, reader, &writer); err != nil {
+        util.DebugOut(err.Error())
+    }
 
     return
 }
