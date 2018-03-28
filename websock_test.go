@@ -133,14 +133,13 @@ var (
     mainConfig                      ConfigInput
     mainServer                      *NetChannelService
     mainClient                      *NetChannelClient
-    configFilename                  *string = flag.String("config", JSON_FILENAME,
-                                        "Usage -config [filename]")
+    configFilename                  = flag.String("config", JSON_FILENAME,"Usage -config [filename]")
 )
 func TestMainChannel(t *testing.T) {
     /* Parse config */
     var configStatus error
     if mainConfig, configStatus = setupJSONconfig(*configFilename); configStatus != nil {
-        util.RetErrStr(configStatus.Error())
+        panic(configStatus.Error())
     }
 
     /* Debug output if verbosity switch is true */
@@ -152,12 +151,12 @@ func TestMainChannel(t *testing.T) {
     switch mainConfig.Server {
     case false: /* Client mode */
         if mainClient, err = startClientMode(mainConfig); err != nil {
-            util.RetErrStr(err.Error())
+            panic(err.Error())
         }
         break
     case true: /* Server mode */
         if mainServer, err = startServerMode(mainConfig); err != nil {
-            util.RetErrStr(err.Error())
+            panic(err.Error())
         }
     }
 
@@ -195,7 +194,7 @@ func startServerMode(config ConfigInput) (*NetChannelService, error) {
             }(config.Compression),
         incomingClientHandler)
     if createStatus != nil {
-        util.RetErrStr(createStatus.Error())
+        panic(createStatus.Error())
     }
 
     return mainServer, nil
@@ -233,10 +232,10 @@ func startClientMode(config ConfigInput) (*NetChannelClient, error) {
             }(config.Compression),
     )
     if buildStatus != nil {
-        util.RetErrStr(buildStatus.Error())
+        panic(buildStatus.Error())
     }
     if err := mainClient.InitializeCircuit(); err != nil {
-        util.RetErrStr(err.Error())
+        panic(err.Error())
     }
     clientTX(config)
 
@@ -277,7 +276,7 @@ func setupJSONconfig(file string) (ConfigInput, error) {
         readStatus          error
     )
     if rawFile, readStatus = ioutil.ReadFile(file); readStatus != nil {
-        util.RetErrStr(readStatus.Error())
+        panic(readStatus.Error())
     }
 
     /*
@@ -285,10 +284,10 @@ func setupJSONconfig(file string) (ConfigInput, error) {
      */
     parseStatus := json.Unmarshal(rawFile, &mainConfig)
     if parseStatus != nil {
-        util.RetErrStr(parseStatus.Error())
+        panic(parseStatus.Error())
     }
     if mainConfig.ModuleName != moduleName {
-        util.RetErrStr("invalid configuration file: " + *configFilename)
+        panic("invalid configuration file: " + *configFilename)
     }
 
     /*
@@ -299,7 +298,7 @@ func setupJSONconfig(file string) (ConfigInput, error) {
         mainConfig.ClientTXDataMax < mainConfig.ClientTXDataMin ||
         mainConfig.ClientTXTimeMax < mainConfig.ClientTXTimeMin {
 
-        util.RetErrStr("invalid configuration file, data/timeout ranges are not configured properly")
+        panic("invalid configuration file, data/timeout ranges are not configured properly")
     }
 
     return mainConfig, nil
@@ -322,7 +321,7 @@ func clientTX(config ConfigInput) {
         if config.ClientTX == true {
             go func(config ConfigInput) {
                 if mainClient.connected == false {
-                    util.RetErrStr("Failed to connect to server")
+                    panic("Failed to connect to server")
                 }
 
                 var transmitStatus error = nil
@@ -373,7 +372,7 @@ func serverTX(config ConfigInput) {
                 transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
                     config.ServerTXDataStatic, handlerServerTx)
                 if transmitStatus != nil {
-                    util.RetErrStr(transmitStatus.Error())
+                    panic(transmitStatus.Error())
 
                 }
             }
@@ -418,7 +417,7 @@ func handlerClientTx(p []byte) error {
     }
 
     if txLen != len(p) {
-        return util.RetErrStr("handlerClientTx() reports unexpected EOF in write stream")
+        return errors.New("handlerClientTx() reports unexpected EOF in write stream")
     }
 
     return nil
@@ -435,7 +434,7 @@ func handlerServerTx(p []byte) error {
         D("sent [" + util.IntToString(len(p)) + " bytes]: " + string(p))
 
         if txLen != len(p) {
-            return util.RetErrStr("handlerServerTx() reports unexpected EOF in write stream")
+            return errors.New("handlerServerTx() reports unexpected EOF in write stream")
         }
     }
 
