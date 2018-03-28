@@ -272,8 +272,8 @@ func checkWriteThread(client *NetChannelClient) {
 
 func (f *NetChannelClient) initializePKE() (error) {
     /*
-  * Generate keypair, construct HTTP POST request parameter map
-  */
+     * Generate keypair, construct HTTP POST request parameter map
+     */
     var ( /* Output reserved for keypair/post request generate method */
         curve                   ecdh.ECDH
         request                 map[string]string
@@ -287,9 +287,12 @@ func (f *NetChannelClient) initializePKE() (error) {
 
     /* Perform HTTP TX, receive the public key from the server */
     var body []byte
-    body, initStatus = sendTransmission(f, masterConfig.HTTPVerb/* POST */, f.inputURI, request)
+    body, initStatus = f.sendTransmission(masterConfig.HTTPVerb/* POST */, f.inputURI, request)
     if initStatus != nil && initStatus != io.EOF {
         return initStatus
+    }
+    if len(body) == 0 {
+        return util.RetErrStr("server has returned a null length public key")
     }
 
     /*
@@ -391,7 +394,7 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
 
     /* Transmit */
     var body []byte
-    body, err = sendTransmission(f, masterConfig.HTTPVerb, f.inputURI, parmMap)
+    body, err = f.sendTransmission(masterConfig.HTTPVerb, f.inputURI, parmMap)
     if err != nil {
         return 0,0, err
     }
@@ -540,16 +543,16 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     return read, io.EOF
 }
 
-func sendTransmission(client *NetChannelClient, verb string, URI string, params map[string]string) ([]byte, error) {
+func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[string]string) ([]byte, error) {
 
-    client.cancelledSync.Lock()
-    defer client.cancelledSync.Unlock()
+    f.cancelledSync.Lock()
+    defer f.cancelledSync.Unlock()
 
     var (
         req             *http.Request
         reqError        error
     )
-    if req, reqError = client.generateHTTPheaders(URI, verb, params); reqError != nil {
+    if req, reqError = f.generateHTTPheaders(URI, verb, params); reqError != nil {
         return nil, reqError
     }
 
@@ -560,7 +563,7 @@ func sendTransmission(client *NetChannelClient, verb string, URI string, params 
         resp            *http.Response
         respError       error
     )
-    if resp, respError = client.cancelHTTPandWrite(req); respError != nil {
+    if resp, respError = f.cancelHTTPandWrite(req); respError != nil {
         return nil, respError
     }
     if resp == nil {
@@ -580,13 +583,10 @@ func sendTransmission(client *NetChannelClient, verb string, URI string, params 
 }
 
 func (f *NetChannelClient) cancelHTTPandWrite(req *http.Request) (*http.Response, error) {
-    var (
-        respIo              = make(chan *http.Response)
-        httpClient          *http.Client
-    )
+    var respIo              = make(chan *http.Response)
 
     tr                      := &http.Transport{}
-    httpClient              = &http.Client{Transport: tr}
+    httpClient              := &http.Client{Transport: tr}
     f.request               = req
     f.transport             = tr
 
