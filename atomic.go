@@ -89,6 +89,9 @@ type NetChannelClient struct {
     request             *http.Request
     cancelled           bool
     cancelledSync       sync.Mutex
+
+    /* Main config */
+    config              *ProtocolConfig
 }
 
 type transferUnit struct {
@@ -178,12 +181,16 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
     /*
      * Parse the primary configuration and set it as a reference to masterConfig
      */
-    var configParseStatus error
-    if configParseStatus = ParseConfig(); configParseStatus != nil {
+    var (
+        tmpConfig           *ProtocolConfig
+        configParseStatus   error
+    )
+    tmpConfig, configParseStatus = parseConfig()
+    if configParseStatus != nil {
         return nil, configParseStatus
     }
 
-    if testCharSetPKE(masterConfig.PostBodyKeyCharset) == false {
+    if testCharSetPKE(tmpConfig.PostBodyKeyCharset) == false {
         return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
     }
 
@@ -209,6 +216,8 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         transport:          nil,
         request:            nil,
         cancelled:          false,
+
+        config:             tmpConfig,
     }
 
     if (ioChannel.flags & FLAG_DEBUG) > 1 {
@@ -287,7 +296,7 @@ func (f *NetChannelClient) initializePKE() (error) {
 
     /* Perform HTTP TX, receive the public key from the server */
     var body []byte
-    body, initStatus = f.sendTransmission(masterConfig.HTTPVerb/* POST */, f.inputURI, request)
+    body, initStatus = f.sendTransmission(f.config.HTTPVerb/* POST */, f.inputURI, request)
     if initStatus != nil && initStatus != io.EOF {
         return initStatus
     }
@@ -365,12 +374,12 @@ func (f *NetChannelClient) testCircuit() error {
 
     var responseData = make([]byte, f.responseData.Len())
     read, err := f.readStream(responseData, FLAG_TEST_CONNECTION)
-    if err != io.EOF || read != len(masterConfig.TestStream) {
+    if err != io.EOF || read != len(f.config.TestStream) {
         return util.RetErrStr("testCircuit() invalid response from server side")
     }
 
     if !util.IsAsciiPrintable(string(responseData)) ||
-        strings.Compare(string(responseData), masterConfig.TestStream) != 0 {
+        strings.Compare(string(responseData), f.config.TestStream) != 0 {
         return util.RetErrStr("testCircuit() data corruption from server side")
     }
 
@@ -378,6 +387,10 @@ func (f *NetChannelClient) testCircuit() error {
 }
 
 func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int, written int, err error) {
+    if (flags & FLAG_TERMINATE_CONNECTION) > 0 {
+        // FIXME
+    }
+
     if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
         return 0,0, util.RetErrStr("writeStream(): client not connected")
     }
@@ -394,7 +407,7 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
 
     /* Transmit */
     var body []byte
-    body, err = f.sendTransmission(masterConfig.HTTPVerb, f.inputURI, parmMap)
+    body, err = f.sendTransmission(f.config.HTTPVerb, f.inputURI, parmMap)
     if err != nil {
         return 0,0, err
     }
@@ -452,13 +465,13 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
 func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (map[string]string, error) {
     var iCommands = []internalCommands{
         {flags: FLAG_TEST_CONNECTION,
-            command: masterConfig.TestStream},
+            command: f.config.TestStream},
 
         {flags: FLAG_CHECK_STREAM_DATA,
-            command: masterConfig.CheckStream},
+            command: f.config.CheckStream},
 
         {flags: FLAG_TERMINATE_CONNECTION,
-            command: masterConfig.TermConnect},
+            command: f.config.TermConnect},
     }
 
     /* Internal commands are based on the FlagVal bit flag */
@@ -619,10 +632,10 @@ func (f *NetChannelClient) cancelHTTPandWrite(req *http.Request) (*http.Response
 }
 
 func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
-    m map[string]string) (*http.Request, error) {
+    formMap map[string]string) (*http.Request, error) {
 
     form := url.Values{}
-    for k, v := range m {
+    for k, v := range formMap {
         form.Set(k, v)
     }
     formEncoded := form.Encode()
@@ -631,8 +644,7 @@ func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
         req         *http.Request
         reqStatus   error
     )
-    if req, reqStatus = http.NewRequest(verb /* POST */, URI,
-        strings.NewReader(formEncoded)); reqStatus != nil {
+    if req, reqStatus = http.NewRequest(verb /* POST */, URI, strings.NewReader(formEncoded)); reqStatus != nil {
         return nil, reqStatus
     }
 
@@ -641,7 +653,7 @@ func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
      *
      *  Most common ever Content-Type
      */
-    req.Header.Set("Content-Type", masterConfig.ContentType)
+    req.Header.Set("Content-Type", f.config.ContentType)
     req.Header.Set("Connection", "close")
 
     /*
@@ -650,7 +662,7 @@ func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
      *
      * Most common ever UA
      */
-    req.Header.Set("User-Agent", masterConfig.UserAgent)
+    req.Header.Set("User-Agent", f.config.UserAgent)
 
     /* Set the domain/IP */
     var (
