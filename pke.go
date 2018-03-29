@@ -229,7 +229,7 @@ func (f *NetChannelClient) decodeServerPubkeyGenSecret(publicKeyRaw []byte, priv
     return secret, nil
 }
 
-func (f *NetChannelClient) generateCurvePostRequest() (
+func (f *NetChannelClient) generateCurvePostRequest(config *ProtocolConfig) (
     ec ecdh.ECDH,
     req map[string]string,
     privateKey crypto.PrivateKey,
@@ -259,26 +259,26 @@ func (f *NetChannelClient) generateCurvePostRequest() (
 
     /* generate fake key/value pools */
     outMap := make(map[string]string)
-    numOfParameters := util.RandInt(3, POST_BODY_JUNK_MAX_PARAMETERS)
+    numOfParameters := util.RandInt(3, config.PostBodyJunkLen)
 
     magicNumber := numOfParameters / 2
     for i := numOfParameters; i != 0; i -= 1 {
         var pool, key string
-        if POST_BODY_VALUE_LEN != -1 {
-            pool = encodeKeyValue(POST_BODY_VALUE_LEN)
+        if config.PostBodyValueLength != -1 {
+            pool = encodeKeyValue(config.PostBodyValueLength)
         } else {
             pool = encodeKeyValue(len(string(postPool)) * 2)
         }
-        key = encodeKeyValue(POST_BODY_KEY_LEN)
+        key = encodeKeyValue(config.PostBodyKeyLength)
 
         /* This value must not be any of the b64 encoded POST_BODY_KEY_CHARSET values -- true == collision */
-        if collision := f.checkForKeyCollision(key, POST_BODY_KEY_CHARSET); collision == true {
+        if collision := f.checkForKeyCollision(key, config.PostBodyKeyCharset); collision == true {
             i += 1 /* Fix the index */
             continue
         }
 
         if i == magicNumber {
-            parameter := string(POST_BODY_KEY_CHARSET[util.RandInt(0, len(POST_BODY_KEY_CHARSET))])
+            parameter := string(config.PostBodyKeyCharset[util.RandInt(0, len(config.PostBodyKeyCharset))])
             outMap[util.B64E([]byte(parameter))] = string(postPool)
             continue
         }

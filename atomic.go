@@ -54,6 +54,12 @@ const (
     FLAG_CHECK_STREAM_DATA
 )
 
+const (
+    CHECK_STREAM_DATA               = "check stream data"
+    TEST_CONNECTION_DATA            = "test connection data"
+    TERMINATE_CONNECTION_DATA       = "terminate connection"
+)
+
 type internalCommands struct {
     flags FlagVal
     command string
@@ -102,6 +108,9 @@ type NetChannelClient struct {
     request             *http.Request
     cancelled           bool
     cancelledSync       sync.Mutex
+
+    /* Master configuration object */
+    masterConfig        *ProtocolConfig
 }
 
 type TransferUnit struct {
@@ -188,7 +197,18 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         return nil, util.RetErrStr("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
     }
 
-    if testCharSetPKE(POST_BODY_KEY_CHARSET) == false {
+    /*
+     * Parse master configuration file
+     */
+    var (
+        tmpConfig           *ProtocolConfig
+        configParseStatus   error
+    )
+    if tmpConfig, configParseStatus = parseConfig(); configParseStatus != nil {
+        return nil, configParseStatus
+    }
+
+    if testCharSetPKE(tmpConfig.PostBodyKeyCharset) == false {
         return nil, util.RetErrStr("PANIC: POST_BODY_KEY_CHARSET contains non-unique elements")
     }
 
@@ -214,6 +234,7 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         transport:          nil,
         request:            nil,
         cancelled:          false,
+        masterConfig:       tmpConfig,
     }
 
     if (ioChannel.flags & FLAG_DEBUG) > 1 {
@@ -233,13 +254,13 @@ func (f *NetChannelClient) InitializeCircuit() error {
         initStatus              error = nil
         clientPrivateKey        crypto.PrivateKey
     )
-    curve, request, clientPrivateKey, initStatus = f.generateCurvePostRequest()
+    curve, request, clientPrivateKey, initStatus = f.generateCurvePostRequest(f.masterConfig)
     if initStatus != nil {
         return initStatus
     }
 
     /* Perform HTTP TX, receive the public key from the server */
-    body, txErr := sendTransmission(HTTP_VERB /* POST */, f.inputURI, request, f)
+    body, txErr := sendTransmission(f.masterConfig.HTTPVerb /* POST */, f.inputURI, request, f)
     if txErr != nil && txErr != io.EOF {
         return txErr
     }
@@ -414,7 +435,7 @@ func (f *NetChannelClient) writeStream(p []byte, flags FlagVal) (read int, writt
     key := util.B64E([]byte(f.clientIdString))
     parmMap[key] = value
 
-    body, err := sendTransmission(HTTP_VERB, f.inputURI, parmMap, f)
+    body, err := sendTransmission(f.masterConfig.HTTPVerb, f.inputURI, parmMap, f)
     if err != nil {
         return 0,0, err
     }
@@ -496,7 +517,7 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
      *
      *  Most common ever Content-Type
      */
-    req.Header.Set("Content-Type", HTTP_CONTENT_TYPE)
+    req.Header.Set("Content-Type", client.masterConfig.ContentType)
     req.Header.Set("Connection", "close")
 
     /*
@@ -505,7 +526,7 @@ func sendTransmission(verb string, URI string, m map[string]string, client *NetC
      *
      * Most common ever UA
      */
-    req.Header.Set("User-Agent", HTTP_USER_AGENT)
+    req.Header.Set("User-Agent", client.masterConfig.UserAgent)
 
     /* Parse the domain/IP */
     uri, err := url.Parse(URI)
