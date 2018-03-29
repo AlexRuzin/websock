@@ -52,7 +52,7 @@ const (
     FLAG_TERMINATE_CONNECTION
     FLAG_TEST_CONNECTION
     FLAG_CHECK_STREAM_DATA
-)
+) /* asdfasdf */
 
 type internalCommands struct {
     flags   FlagVal
