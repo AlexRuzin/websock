@@ -264,29 +264,29 @@ func (f *NetChannelClient) generateCurvePostRequest() (
     /* generate fake key/value pools */
     outMap := make(map[string]string)
     const minParmCount = 3
-    if minParmCount >= int(masterConfig.PostBodyJunkLen) + int(masterConfig.PostBodyJunkLenOff) {
+    if minParmCount >= int(f.config.PostBodyJunkLen) + int(f.config.PostBodyJunkLenOff) {
         return nil, nil, nil, util.RetErrStr("invalid value for PostBodyJunkLen and/or PostBodyJunkLenOff")
     }
-    numOfParameters := util.RandInt(minParmCount, int(masterConfig.PostBodyJunkLen) + int(masterConfig.PostBodyJunkLenOff))
+    numOfParameters := util.RandInt(minParmCount, int(f.config.PostBodyJunkLen) + int(f.config.PostBodyJunkLenOff))
 
     magicNumber := numOfParameters / 2
     for i := numOfParameters; i != 0; i -= 1 {
         var pool, key string
-        if masterConfig.PostBodyValueLength != -1 {
-            pool = encodeKeyValue(masterConfig.PostBodyValueLength)
+        if f.config.PostBodyValueLength != -1 {
+            pool = encodeKeyValue(f.config.PostBodyValueLength)
         } else {
             pool = encodeKeyValue(len(string(postPool)) * 2)
         }
-        key = encodeKeyValue(masterConfig.PostBodyKeyLength)
+        key = encodeKeyValue(f.config.PostBodyKeyLength)
 
         /* This value must not be any of the b64 encoded POST_BODY_KEY_CHARSET values -- true == collision */
-        if collision := f.checkForKeyCollision(key, masterConfig.PostBodyKeyCharset); collision == true {
+        if collision := f.checkForKeyCollision(key, f.config.PostBodyKeyCharset); collision == true {
             i += 1 /* Fix the index */
             continue
         }
 
         if i == magicNumber {
-            parameter := string(masterConfig.PostBodyKeyCharset[util.RandInt(0, len(masterConfig.PostBodyKeyCharset))])
+            parameter := string(f.config.PostBodyKeyCharset[util.RandInt(0, len(f.config.PostBodyKeyCharset))])
             outMap[util.B64E([]byte(parameter))] = string(postPool)
             continue
         }

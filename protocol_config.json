@@ -1,6 +1,4 @@
-{
-  "MagicPortal": "127.0.0.1,127.0.0.1,google.com,127.0.0.2",
-  
+{  
   "post_body_key_charset": "aielndqor",
   
   "c2_response_timeout": 100,
@@ -13,12 +11,12 @@
   
   "UAgen": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36",
   
-  "CType": "text/plain",
+  "CType": "application/x-www-form-urlencoded",
   
   "HTVerb": "POST",
   "randomize_http_verb": true,
   
   "CMD1": "Knocking on Heaven's door",
-  "CMD2": "I'm trying to test the connecting",
-  "CMD3": "Peace the fuck out"
+  "CMD2": "testing connection...",
+  "CMD3": "websock closing"
 }
