@@ -107,6 +107,11 @@ type transferUnit struct {
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
     read, err = f.readInternal(p)
+
+    if f.connected == false {
+        return 0, util.RetErrStr("Read(): client has closed the connection")
+    }
+
     if err != io.EOF {
         return 0, err
     }
@@ -116,6 +121,11 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
 
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
     written, err = f.writeInternal(p)
+
+    if f.connected == false {
+        return 0, util.RetErrStr("Write(): client has closed the connection")
+    }
+
     if err != io.EOF {
         return 0, err
     }
@@ -388,7 +398,7 @@ func (f *NetChannelClient) testCircuit() error {
 
 func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int, written int, err error) {
     if (flags & FLAG_TERMINATE_CONNECTION) > 0 {
-        // FIXME
+        return 0, 0, util.RetErrStr("writeStream(): Client has forced the connection to close")
     }
 
     if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
