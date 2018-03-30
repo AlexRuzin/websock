@@ -110,16 +110,16 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
     }
 
     var server = &NetChannelService{
-        IncomingHandler: handler,
-        port:            port,
-        Flags:           flags,
-        pathGate:        pathGate,
+        IncomingHandler:    handler,
+        port:               port,
+        Flags:              flags,
+        pathGate:           pathGate,
 
         /* Map consists of key: ClientId (string) and value: *NetInstance object */
-        clientMap: make(map[string]*NetInstance),
+        clientMap:          make(map[string]*NetInstance),
 
         /* Set the main config */
-        config:         tmpConfig,
+        config:             tmpConfig,
     }
     channelService = server
 
