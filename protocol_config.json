@@ -1,7 +1,7 @@
 {  
   "post_body_key_charset": "aielndqor",
   
-  "c2_response_timeout": 100,
+  "c2_response_timeout": 10,
   
   "post_body_value_length": -1,
   "post_body_key_length": 8,

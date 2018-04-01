@@ -15,7 +15,7 @@
   "ClientTXDataMax": 64,
   "ClientTXDataStatic": true,
 
-  "ServerTX": true,
+  "ServerTX": false,
   "ServerTXTimeMin": 100,
   "ServerTXTimeMax": 10000,
   "ServerTXDataMin": 16,
