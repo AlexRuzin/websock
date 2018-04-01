@@ -437,17 +437,17 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
         var command = string(rawData)
 
         switch command {
-        case f.service.config.CheckStream:
+        case f.service.config.CheckStream: // FLAG_CHECK_STREAM_DATA
             if f.connected == false {
                 return util.RetErrStr("client not connected")
             }
 
-            var timeout = f.service.config.C2ResponseTimeout * 100
+            var timeout = f.service.config.C2ResponseTimeout
             for ; timeout != 0; timeout -= 1 {
                 if f.clientTX.Len() != 0 {
                     break
                 }
-                util.Sleep(10 * time.Millisecond)
+                util.Sleep(1 * time.Second)
             }
 
             f.iOSync.Lock()
@@ -478,11 +478,11 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
             encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, otherFlags, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
-        case f.service.config.TestStream:
+        case f.service.config.TestStream: // FLAG_TEST_CONNECTION
             encrypted, _ := encryptData(rawData, f.secret, FLAG_DIRECTION_TO_CLIENT, 0, f.ClientIdString)
             return sendResponse(writer, encrypted)
 
-        case f.service.config.TermConnect:
+        case f.service.config.TermConnect: // FLAG_TERMINATE_CONNECTION
             /* FIXME */
             panic("terminating connection")
         }
