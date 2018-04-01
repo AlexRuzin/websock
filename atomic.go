@@ -410,8 +410,7 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
 
     /* Generate parameters */
     var parmMap = make(map[string]string)
-    parmMap, err = f.generatePOSTrequest(rawData, flags)
-    if err != nil {
+    if parmMap, err = f.generatePOSTrequest(rawData, flags); err != nil {
         util.RetErrStr(err.Error())
     }
 
@@ -421,6 +420,11 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
     if err != nil {
         return 0,0, err
     }
+
+    if (flags & FLAG_CHECK_STREAM_DATA) > 0 && len(body) == 0 {
+        return 0, 0, io.EOF
+    }
+
     read = len(body)
 
     written = 0
@@ -472,28 +476,44 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
     return written, nil
 }
 
-func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (map[string]string, error) {
+func returnCommandString(flag FlagVal, config ProtocolConfig) ([]byte, error) {
     var iCommands = []internalCommands{
         {flags: FLAG_TEST_CONNECTION,
-            command: f.config.TestStream},
+            command: config.TestStream},
 
         {flags: FLAG_CHECK_STREAM_DATA,
-            command: f.config.CheckStream},
+            command: config.CheckStream},
 
         {flags: FLAG_TERMINATE_CONNECTION,
-            command: f.config.TermConnect},
+            command: config.TermConnect},
     }
 
     /* Internal commands are based on the FlagVal bit flag */
-    if len(rawData) == 0 && flags != 0 {
-        rawData = func (flags FlagVal) []byte {
-            for k := range iCommands {
-                if (iCommands[k].flags & flags) > 0 {
-                    return []byte(iCommands[k].command)
-                }
+    var output = func (flags FlagVal) []byte {
+        for k := range iCommands {
+            if (iCommands[k].flags & flags) > 0 {
+                return []byte(iCommands[k].command)
             }
-            return nil
-        } (flags)
+        }
+        return nil
+    } (flag)
+
+    if output == nil {
+        return nil, util.RetErrStr("flag does not suppose a command string")
+    }
+
+    return output, nil
+}
+
+func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (map[string]string, error) {
+    if len(rawData) == 0 && flags != 0 {
+        var (
+            err error
+            tmp []byte
+        )
+        if tmp, err = returnCommandString(flags, *f.config); err == nil {
+            rawData = tmp
+        }
     }
 
     if len(rawData) == 0 {
@@ -518,8 +538,7 @@ func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (m
     return parmMap, nil
 }
 
-func (f *NetChannelClient) compressEncryptData(rawData []byte,
-    flags FlagVal) (encrypted []byte, err error) {
+func (f *NetChannelClient) compressEncryptData(rawData []byte, flags FlagVal) (encrypted []byte, err error) {
     err = nil
 
     /* Check for high-entropy compression inflation and generate a compression stream */
