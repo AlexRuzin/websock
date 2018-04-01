@@ -429,6 +429,48 @@ func decodePublicKeyParameters(reader *http.Request) (clientKey *string, err err
     return clientKey, nil
 }
 
+func (f *NetInstance) cmdWaitAndTransmitData(writer http.ResponseWriter) error {
+    if f.connected == false {
+        return util.RetErrStr("client not connected")
+    }
+
+    var timeout = f.service.config.C2ResponseTimeout
+    for ; timeout != 0; timeout -= 1 {
+        if f.clientTX.Len() != 0 {
+            break
+        }
+        util.Sleep(1 * time.Second)
+    }
+
+    f.iOSync.Lock()
+    defer f.iOSync.Unlock() /* We break out of the loop so defer is OK */
+
+    if timeout == 0 || f.clientTX.Len() == 0 {
+        /* Time out -- no data to be sent */
+        writer.WriteHeader(http.StatusOK)
+        return nil
+    }
+
+    defer f.clientTX.Reset()
+
+    var (
+        outputStream = f.clientTX.Bytes()
+        otherFlags FlagVal = 0
+    )
+
+    if (f.service.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > util.GetCompressedSize(outputStream) {
+        otherFlags |= FLAG_COMPRESS
+        var streamStatus error = nil
+        outputStream, streamStatus = util.CompressStream(outputStream)
+        if streamStatus != nil {
+            panic(streamStatus)
+        }
+    }
+
+    encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, otherFlags, f.ClientIdString)
+    return sendResponse(writer, encrypted)
+}
+
 func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter) error {
     /*
      * Check for internal commands first
@@ -438,45 +480,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
 
         switch command {
         case f.service.config.CheckStream: // FLAG_CHECK_STREAM_DATA
-            if f.connected == false {
-                return util.RetErrStr("client not connected")
-            }
-
-            var timeout = f.service.config.C2ResponseTimeout
-            for ; timeout != 0; timeout -= 1 {
-                if f.clientTX.Len() != 0 {
-                    break
-                }
-                util.Sleep(1 * time.Second)
-            }
-
-            f.iOSync.Lock()
-            defer f.iOSync.Unlock() /* We break out of the loop so defer is OK */
-
-            if timeout == 0 || f.clientTX.Len() == 0 {
-                /* Time out -- no data to be sent */
-                writer.WriteHeader(http.StatusOK)
-                return nil
-            }
-
-            defer f.clientTX.Reset()
-
-            var (
-                outputStream = f.clientTX.Bytes()
-                otherFlags FlagVal = 0
-            )
-
-            if (f.service.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > util.GetCompressedSize(outputStream) {
-                otherFlags |= FLAG_COMPRESS
-                var streamStatus error = nil
-                outputStream, streamStatus = util.CompressStream(outputStream)
-                if streamStatus != nil {
-                    panic(streamStatus)
-                }
-            }
-
-            encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, otherFlags, f.ClientIdString)
-            return sendResponse(writer, encrypted)
+            return f.cmdWaitAndTransmitData(writer)
 
         case f.service.config.TestStream: // FLAG_TEST_CONNECTION
             encrypted, _ := encryptData(rawData, f.secret, FLAG_DIRECTION_TO_CLIENT, 0, f.ClientIdString)
@@ -488,7 +492,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
         }
     }
 
-    /* Append data to read */
+    /* Append data to read buffer */
     if f.connected == false {
         return util.RetErrStr("client not connected")
     }
