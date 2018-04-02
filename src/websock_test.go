@@ -23,6 +23,7 @@
 package src
 
 import (
+    "os"
     "flag"
     "testing"
     "errors"
@@ -39,7 +40,7 @@ import (
  * Configuration file name. Overriding the config filename is possible using the "-config" flag
  *  i.e.
  */
-const JSON_FILENAME                 string = "config.json"
+const JSON_FILENAME                 string = "config/config.json"
 
 const DEFAULT_RX_WAIT_DURATION      time.Duration = 5000 /* milliseconds */
 
@@ -130,10 +131,11 @@ type ConfigInput struct {
 }
 
 var (
+    defaultJSONfilename             = "invalid.file"
     mainConfig                      ConfigInput
     mainServer                      *NetChannelService
     mainClient                      *NetChannelClient
-    configFilename                  = flag.String("config", JSON_FILENAME,"Usage -config [filename]")
+    configFilename                  = flag.String("config", defaultJSONfilename, "Usage -config [filename]")
 )
 func TestMainChannel(t *testing.T) {
     /* Parse config */
@@ -270,6 +272,15 @@ func printDebugOutput() {
 }
 
 func setupJSONconfig(file string) (ConfigInput, error) {
+    /* Check if the target JSON file exists */
+    if file == defaultJSONfilename {
+        panic("Configuration failure: the configuration filename was not specified")
+    } 
+
+    if _, err := os.Stat(file); os.IsNotExist(err) {
+        panic("Configuration failure: cannot find config file: " + file)
+    }
+
     /* Parse the user input and create a configInput instance */
     var (
         rawFile             []byte
