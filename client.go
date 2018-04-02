@@ -38,28 +38,6 @@ import (
     "github.com/wsddn/go-ecdh"
 )
 
-/************************************************************
- * websock Client objects and methods                       *
- ************************************************************/
-type FlagVal int
-const (
-    FLAG_DO_NOT_USE     FlagVal = 1 << iota /* Flip up to 32 bits -- placeholder*/
-    FLAG_DEBUG
-    FLAG_ENCRYPT
-    FLAG_COMPRESS
-    FLAG_DIRECTION_TO_SERVER
-    FLAG_DIRECTION_TO_CLIENT
-    FLAG_TERMINATE_CONNECTION
-    FLAG_TEST_CONNECTION
-    FLAG_CHECK_STREAM_DATA
-) /* asdfasdf */
-
-type internalCommands struct {
-    flags   FlagVal
-    command string
-    comment string
-}
-
 type NetChannelClient struct {
     /* Server connection parameters */
     inputURI            string
@@ -474,35 +452,6 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
     }
 
     return written, nil
-}
-
-func returnCommandString(flag FlagVal, config ProtocolConfig) ([]byte, error) {
-    var iCommands = []internalCommands{
-        {flags: FLAG_TEST_CONNECTION,
-            command: config.TestStream},
-
-        {flags: FLAG_CHECK_STREAM_DATA,
-            command: config.CheckStream},
-
-        {flags: FLAG_TERMINATE_CONNECTION,
-            command: config.TermConnect},
-    }
-
-    /* Internal commands are based on the FlagVal bit flag */
-    var output = func (flags FlagVal) []byte {
-        for k := range iCommands {
-            if (iCommands[k].flags & flags) > 0 {
-                return []byte(iCommands[k].command)
-            }
-        }
-        return nil
-    } (flag)
-
-    if output == nil {
-        return nil, util.RetErrStr("flag does not suppose a command string")
-    }
-
-    return output, nil
 }
 
 func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (map[string]string, error) {
