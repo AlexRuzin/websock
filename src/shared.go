@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-package websock
+package src
 
 import (
     "bytes"
