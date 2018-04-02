@@ -588,14 +588,14 @@ func sendResponse(writer http.ResponseWriter, data []byte) error {
  * Queue mechanism for the read buffer, implements a FIFO queue
  */
 type rxBuffer struct {
-    data                    bytes.Buffer
+    data                bytes.Buffer
 
     /*
      * double-linked list containing data packets (this will later be expanded to contain
      *  additional properties per each data buffer
      */
-    next                    *rxBuffer
-    last                    *rxBuffer
+    next                *rxBuffer
+    last                *rxBuffer
 }
 
 var firstRxNode *rxBuffer = nil
