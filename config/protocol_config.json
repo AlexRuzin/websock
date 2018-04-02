@@ -16,7 +16,13 @@
   "HTVerb": "POST",
   "randomize_http_verb": true,
   
-  "CMD1": "Knocking on Heaven's door",
-  "CMD2": "testing connection...",
-  "CMD3": "websock closing"
+  "CMD1": "CMD-TESTING-CIRCUIT",
+  "CMD2": "CMD-CHECK-STREAM-DATA",
+  "CMD3": "CMD-TERMINATE-STREAM",
+
+  "ContentType": "Content-Type",
+  "UserAgent": "User-Agent",
+  "Connection": "Connection",
+  "Host": "Host"
+
 }
