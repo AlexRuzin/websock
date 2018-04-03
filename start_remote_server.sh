@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SRC_DIR="`pwd`"
-JSON_CONFIG="`pwd`/../config/config.remote.server.json"
+JSON_CONFIG="`pwd`/config/remote.server.json"
 
 go clean
 go build
