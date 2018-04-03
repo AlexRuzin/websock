@@ -22,7 +22,7 @@
 
 /* Commit test */
 
-package src
+package websock
 
 import (
     "fmt"
