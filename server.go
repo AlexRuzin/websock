@@ -142,8 +142,8 @@ func (f *NetChannelService) CloseService() {
     }
 }
 
-func (f *NetInstance) Close(client *NetInstance) {
-    f.service.closeClient(client)
+func (f *NetInstance) Close() {
+    f.service.closeClient(f)
 }
 
 /*
