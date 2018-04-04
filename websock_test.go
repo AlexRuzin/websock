@@ -134,16 +134,16 @@ type ConfigInput struct {
 
 var (
     defaultJSONfilename             = "invalid.file"
-    mainConfig                      ConfigInput
+    mainConfig                      *ConfigInput
     mainServer                      *NetChannelService
     mainClient                      *NetChannelClient
     configFilename                  = flag.String("config", defaultJSONfilename, "Usage -config [filename]")
 )
 func TestMainChannel(t *testing.T) {
     /* Parse config */
-    var configStatus error
+    var configStatus, err error
     if mainConfig, configStatus = setupJSONconfig(*configFilename); configStatus != nil {
-        panic(configStatus.Error())
+        panic(configStatus)
     }
 
     /* Debug output if verbosity switch is true */
@@ -151,16 +151,15 @@ func TestMainChannel(t *testing.T) {
         printDebugOutput()
     }
 
-    var err error
     switch mainConfig.Server {
     case false: /* Client mode */
         if mainClient, err = startClientMode(mainConfig); err != nil {
-            panic(err.Error())
+            panic(err)
         }
         break
     case true: /* Server mode */
         if mainServer, err = startServerMode(mainConfig); err != nil {
-            panic(err.Error())
+            panic(err)
         }
     }
 
@@ -282,12 +281,12 @@ func printDebugOutput() {
 
             D("Using encryption [forced]: " + strconv.FormatBool(config.Encryption))
             D("Using compression [optional]: " + strconv.FormatBool(config.Compression))
-        }(mainConfig)
+        }(*mainConfig)
     }
     D("Configuration file " + *configFilename + " is nominal, proceeding...")
 }
 
-func setupJSONconfig(file string) (ConfigInput, error) {
+func setupJSONconfig(file string) (*ConfigInput, error) {
     /* Check if the target JSON file exists */
     if file == defaultJSONfilename {
         panic("Configuration failure: the configuration filename was not specified")
@@ -309,9 +308,10 @@ func setupJSONconfig(file string) (ConfigInput, error) {
     /*
      * Build the configInput structure
      */
-    parseStatus := json.Unmarshal(rawFile, &mainConfig)
+    var outputConfig ConfigInput
+    parseStatus := json.Unmarshal(rawFile, outputConfig)
     if parseStatus != nil {
-        panic(parseStatus.Error())
+        panic(parseStatus)
     }
     if mainConfig.ModuleName != moduleName {
         panic("invalid configuration file: " + *configFilename)
@@ -320,22 +320,22 @@ func setupJSONconfig(file string) (ConfigInput, error) {
     /*
      * Check configuration sanity
      */
-    if mainConfig.ServerTXTimeMax < mainConfig.ServerTXTimeMin ||
-        mainConfig.ServerTXDataMax < mainConfig.ServerTXDataMin ||
-        mainConfig.ClientTXDataMax < mainConfig.ClientTXDataMin ||
-        mainConfig.ClientTXTimeMax < mainConfig.ClientTXTimeMin {
+    if outputConfig.ServerTXTimeMax < outputConfig.ServerTXTimeMin ||
+        outputConfig.ServerTXDataMax < outputConfig.ServerTXDataMin ||
+        outputConfig.ClientTXDataMax < outputConfig.ClientTXDataMin ||
+        outputConfig.ClientTXTimeMax < outputConfig.ClientTXTimeMin {
 
         panic("invalid configuration file, data/timeout ranges are not configured properly")
     }
 
-    return mainConfig, nil
+    return &outputConfig, nil
 }
 
 func incomingClientHandler(client *NetInstance, server *NetChannelService) error {
-    D("Initial connect from client " + client.ClientIdString)
+    D("The following client has negotiated a RC4 key: " + client.ClientIdString)
 
     server.clientMap[client.ClientIdString] = client
-    serverTX(mainConfig)
+    serverTX(*mainConfig)
 
     return nil
 }
@@ -364,6 +364,7 @@ func clientTX(config ConfigInput) {
 
                     transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
                         config.ClientTXDataStatic, handlerClientTx)
+
                     if transmitStatus != nil {
                         panic(transmitStatus)
                     }
@@ -375,10 +376,10 @@ func clientTX(config ConfigInput) {
     /* Receive data */
     go func (config ConfigInput) {
         for {
-            if len, rxStatus := mainClient.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
-                rawData := make([]byte, len)
+            if incomingLength, rxStatus := mainClient.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
+                rawData := make([]byte, incomingLength)
                 mainClient.Read(rawData)
-                D("inbound data from server (" + util.IntToString(len) + " bytes): " + string(rawData))
+                D("from server: (" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
             }
         }
     } (config)
@@ -399,8 +400,9 @@ func serverTX(config ConfigInput) {
                 }
                 transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
                     config.ServerTXDataStatic, handlerServerTx)
+
                 if transmitStatus != nil {
-                    panic(transmitStatus.Error())
+                    panic(transmitStatus)
 
                 }
             }
@@ -439,7 +441,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 }
 
 func handlerClientTx(p []byte) error {
-    D("client sent: (" + util.IntToString(len(p)) + " bytes): " + string(p))
+    D("to server: (" + util.IntToString(len(p)) + " bytes): " + string(p))
 
     txLen, err := mainClient.Write(p)
     if err != io.EOF {
@@ -457,18 +459,18 @@ func handlerServerTx(p []byte) error {
     /* Write to all clients */
     for _, v := range mainServer.clientMap {
         //D("transmitting data to client: " + v.ClientIdString)
-        txLen, err := v.Write(p)
-        if err != io.EOF {
-            return err
+        txLen, writeStatus := v.Write(p)
+        if writeStatus != io.EOF {
+            return writeStatus
         }
-        D("server sent [" + util.IntToString(len(p)) + " bytes]: " + string(p))
+        D("to client [" + util.IntToString(len(p)) + " bytes]: " + string(p))
 
         if txLen != len(p) {
             return errors.New("handlerServerTx() reports unexpected EOF in write stream")
         }
     }
 
-    return nil
+    return io.EOF
 }
 
 func D(debug string) {
