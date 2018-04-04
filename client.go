@@ -250,18 +250,17 @@ func checkWriteThread(client *NetChannelClient) {
             if err != nil {
                 if err == io.EOF {
                     /* Connection is closed due to a Write() request */
+                    if (client.flags & FLAG_DEBUG) > 0 && read == 0 {
+                        datetime := func() string {
+                            return time.Now().String()
+                        }()
+                        util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
+                    }
                     util.Sleep(10 * time.Millisecond)
                     continue
                 }
                 client.Close()
                 return
-            }
-
-            if (client.flags & FLAG_DEBUG) > 0 && read == 0 {
-                datetime := func() string {
-                    return time.Now().String()
-                }()
-                util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
             }
         }
     } (client)
@@ -398,11 +397,6 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
     if err != nil {
         return 0,0, err
     }
-
-    if (flags & FLAG_CHECK_STREAM_DATA) > 0 && len(body) == 0 {
-        return 0, 0, io.EOF
-    }
-
     read = len(body)
 
     written = 0
@@ -535,7 +529,6 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
 }
 
 func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[string]string) ([]byte, error) {
-
     f.cancelledSync.Lock()
     defer f.cancelledSync.Unlock()
 
@@ -554,10 +547,11 @@ func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[
         resp            *http.Response
         respError       error
     )
-    if resp, respError = f.cancelHTTPandWrite(req); respError != nil {
+    if resp, respError = f.waitForWriteTxCancel(req); respError != nil {
         return nil, respError
     }
     if resp == nil {
+        f.Close()
         return nil, util.RetErrStr("sendTransmission() reports that the response buffer is nil")
     }
 
@@ -573,36 +567,42 @@ func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[
     return body, nil
 }
 
-func (f *NetChannelClient) cancelHTTPandWrite(req *http.Request) (*http.Response, error) {
-    var respIo              = make(chan *http.Response)
-
-    tr                      := &http.Transport{}
-    httpClient              := &http.Client{Transport: tr}
-    f.request               = req
+func (f *NetChannelClient) waitForWriteTxCancel(httpRequestInput *http.Request) (*http.Response, error) {
+    var (
+        tr                  = &http.Transport{}
+        httpClient          = &http.Client{Transport: tr}
+        respIo              = make(chan *http.Response)
+    )
+    f.request               = httpRequestInput
     f.transport             = tr
 
-    go func (r *http.Request) {
+    go func (httpRequest *http.Request) {
+        util.Sleep(10 * time.Millisecond)
         var (
             response        *http.Response
             rxStatus        error = nil
         )
-        if response, rxStatus = httpClient.Do(r); rxStatus != nil {
+        if response, rxStatus = httpClient.Do(httpRequest); rxStatus != nil {
+            /* If cancelled, the channel will close and the HTTP request will be cleaned up */
             close(respIo)
             return
         }
+        /*
+         * In the instance of a regular transmit, this object should be passed, and this method
+         *  should ultimately server no purpose.
+         */
         respIo <- response
-    } (req)
+    } (f.request)
 
     resp, ok := <- respIo
     if !ok {
         if f.cancelled == true {
-            /* Forced write request */
+            /* Forced write request -- the request is cancelled, so permit another transmit */
             f.transport    = nil
             f.request      = nil
             f.cancelled    = false
             return nil, nil
         }
-        return nil, util.RetErrStr("Failure in client request")
     }
     defer close(respIo)
 
