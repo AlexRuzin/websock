@@ -231,7 +231,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
      * Keep sending POSTs until some data is written to the controller write interface
      */
     checkWriteThread(f)
-    util.Sleep(500 * time.Millisecond)
+    util.SleepSeconds(5)
 
     return nil
 }

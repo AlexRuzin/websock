@@ -337,6 +337,7 @@ func clientTX(config ConfigInput) {
 
                 var transmitStatus error = nil
                 for {
+                    /* Sleep for the period of ClientTXTimeMin between ClientTXTimeMax */
                     if config.ClientTXTimeMin == config.ClientTXTimeMax {
                         util.Sleep(time.Duration(config.ClientTXTimeMin) * time.Millisecond)
                     } else {
