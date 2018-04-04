@@ -141,7 +141,7 @@ var (
 )
 func TestMainChannel(t *testing.T) {
     /* Parse config */
-    var configStatus, err error
+    var configStatus, startService error
     if mainConfig, configStatus = setupJSONconfig(*configFilename); configStatus != nil {
         panic(configStatus)
     }
@@ -153,13 +153,13 @@ func TestMainChannel(t *testing.T) {
 
     switch mainConfig.Server {
     case false: /* Client mode */
-        if mainClient, err = startClientMode(mainConfig); err != nil {
-            panic(err)
+        if mainClient, startService = startClientMode(*mainConfig); startService != nil {
+            panic(startService)
         }
         break
     case true: /* Server mode */
-        if mainServer, err = startServerMode(mainConfig); err != nil {
-            panic(err)
+        if mainServer, startService = startServerMode(*mainConfig); startService != nil {
+            panic(startService)
         }
     }
 
@@ -308,12 +308,15 @@ func setupJSONconfig(file string) (*ConfigInput, error) {
     /*
      * Build the configInput structure
      */
-    var outputConfig ConfigInput
-    parseStatus := json.Unmarshal(rawFile, outputConfig)
+    var (
+        outputConfig ConfigInput
+        parseStatus error
+    )
+    parseStatus = json.Unmarshal(rawFile, &outputConfig)
     if parseStatus != nil {
         panic(parseStatus)
     }
-    if mainConfig.ModuleName != moduleName {
+    if outputConfig.ModuleName != moduleName {
         panic("invalid configuration file: " + *configFilename)
     }
 

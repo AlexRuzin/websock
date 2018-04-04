@@ -26,6 +26,7 @@ import (
     "bytes"
 
     "github.com/AlexRuzin/util"
+    "errors"
 )
 
 /************************************************************
@@ -51,6 +52,15 @@ type internalCommands struct {
     comment string
 }
 
+/*
+ * Shared error enumerator
+ */
+var (
+    ERROR_NONE                  error = nil
+    ERROR_SERVER_DOWN           = errors.New("server is down")
+    ERROR_SERVER_UP             = errors.New("server is up")
+    ERROR_INVALID_URI           = errors.New("invalid URI")
+)
 
 func returnCommandString(flag FlagVal, config ProtocolConfig) ([]byte, error) {
     var iCommands = []internalCommands{

@@ -34,8 +34,11 @@ import (
     "net/http"
     "io/ioutil"
 
+
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
+    "src/github.com/tatsushid/go-fastping"
+    "net"
 )
 
 type NetChannelClient struct {
@@ -213,6 +216,13 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
 }
 
 func (f *NetChannelClient) InitializeCircuit() error {
+    /*
+     * Determine if we can pull anything from the target URI
+     */
+    if checkServerStatus := checkServerAliveStatus(f.controllerURL.String()); checkServerStatus != ERROR_SERVER_UP {
+        return checkServerStatus
+    }
+
     /* Transmit and receive public keys, generate secret */
     if pkeStatus := f.initializePKE(); pkeStatus != nil {
         return pkeStatus
@@ -237,6 +247,65 @@ func (f *NetChannelClient) InitializeCircuit() error {
     util.SleepSeconds(5)
 
     return nil
+}
+
+func checkServerAliveStatus(URI string) error {
+    var (
+        pinger          = fastping.NewPinger()
+        parsedURI       *url.URL
+        parseStatus     error
+        remoteAddr      *net.IPAddr
+        reachable       bool = false
+    )
+    parsedURI, parseStatus = url.Parse(URI)
+    if parseStatus != nil {
+        return ERROR_INVALID_URI
+    }
+
+    if parsedURI.Hostname() != "" {
+        remoteAddr, parseStatus = net.ResolveIPAddr("ip4:icmp", parsedURI.Hostname())
+        if parseStatus != nil {
+            return ERROR_INVALID_URI
+        }
+    } else {
+        q := net.ParseIP(parsedURI.Host)
+        remoteAddr = &net.IPAddr{
+            IP:         q,
+            Zone:       "",
+        }
+    }
+
+    /* Test ping */
+    if serverStatus := func (ping *fastping.Pinger, addr net.IPAddr) error {
+        ping.AddIPAddr(&addr)
+        ping.OnRecv = func(addr *net.IPAddr, rtt time.Duration) { }
+
+        for i := 0; i != 5; i += 1 {
+            ping.Run()
+        }
+
+        ping.OnIdle = func () {
+            reachable = true
+        }
+
+        if reachable == false {
+            return ERROR_SERVER_DOWN
+        }
+
+        return nil
+    } (pinger, *remoteAddr); serverStatus == ERROR_SERVER_DOWN {
+        return serverStatus
+    }
+
+    var (
+        response        *http.Response
+        responseStatus  error
+    )
+    if response, responseStatus = http.Get(URI); responseStatus != nil && response != nil {
+        return ERROR_SERVER_DOWN
+    }
+
+    return ERROR_SERVER_UP
 }
 
 func checkWriteThread(client *NetChannelClient) {
