@@ -35,6 +35,7 @@ type FlagVal int
 const (
     FLAG_DO_NOT_USE     FlagVal = 1 << iota /* Flip up to 32 bits -- placeholder*/
     FLAG_DEBUG
+    FLAG_TEST_CIRCUIT
     FLAG_ENCRYPT
     FLAG_COMPRESS
     FLAG_DIRECTION_TO_SERVER

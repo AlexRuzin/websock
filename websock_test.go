@@ -106,6 +106,8 @@ type ConfigInput struct {
     Encryption                      bool        `json:"Encryption"`
     Compression                     bool        `json:"Compression"`
 
+    TestCircuit                     bool        `json:"TestCircuit"`
+
     Port                            uint16      `json:"Port"`
     Path                            string      `json:"Path"`
     Domain                          string      `json:"Domain"`
@@ -193,7 +195,14 @@ func startServerMode(config ConfigInput) (*NetChannelService, error) {
                 }
 
                 return 0
-            }(config.Compression),
+            }(config.Compression) |
+            func (testCircuit bool) FlagVal {
+                if testCircuit == true {
+                    return FLAG_TEST_CIRCUIT
+                }
+
+                return 0
+            } (config.TestCircuit),
         incomingClientHandler)
     if createStatus != nil {
         panic(createStatus.Error())
@@ -231,7 +240,14 @@ func startClientMode(config ConfigInput) (*NetChannelClient, error) {
                 }
 
                 return 0
-            }(config.Compression),
+            }(config.Compression) |
+            func (testCircuit bool) FlagVal {
+                if testCircuit == true {
+                    return FLAG_TEST_CIRCUIT
+                }
+
+                return 0
+            } (config.TestCircuit),
     )
     if buildStatus != nil {
         panic(buildStatus.Error())

@@ -45,6 +45,7 @@ type NetChannelClient struct {
     path                string
     host                string
     controllerURL       *url.URL
+    testCircuit         bool
 
     /* Identifiers for the client */
     clientId            []byte
@@ -222,9 +223,11 @@ func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Test the circuit
      */
-    if err := f.testCircuit(); err != nil {
-        f.Close()
-        return err
+    if (f.flags & FLAG_TEST_CIRCUIT) > 0 {
+        if circuitStatus := f.testCircuitRoutine(); circuitStatus != nil {
+            f.Close()
+            return circuitStatus
+        }
     }
 
     /*
@@ -344,7 +347,7 @@ func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
     return wrote, io.EOF
 }
 
-func (f *NetChannelClient) testCircuit() error {
+func (f *NetChannelClient) testCircuitRoutine() error {
     if _, _, err := f.writeStream(nil, FLAG_TEST_CONNECTION); err != io.EOF {
         return err
     }

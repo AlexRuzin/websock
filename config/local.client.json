@@ -3,6 +3,7 @@
   "Verbosity": true,
   "Encryption": true,
   "Compression": true,
+  "TestCircuit": false,
 
   "Port": 2222,
   "Path": "/websock.php",
@@ -10,7 +11,7 @@
 
   "ClientTX": true,
   "ClientTXTimeMin": 1000,
-  "ClientTXTimeMax": 2000,
+  "ClientTXTimeMax": 1000,
   "ClientTXDataMin": 16,
   "ClientTXDataMax": 64,
   "ClientTXDataStatic": true,

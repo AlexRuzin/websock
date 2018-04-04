@@ -3,6 +3,7 @@
   "Verbosity": true,
   "Encryption": true,
   "Compression": true,
+  "TestCircuit": false,
 
   "Port": 80,
   "Path": "/magic.php",
