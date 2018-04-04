@@ -422,6 +422,8 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 }
 
 func handlerClientTx(p []byte) error {
+    D("client sent: (" + util.IntToString(len(p)) + " bytes): " + string(p))
+
     txLen, err := mainClient.Write(p)
     if err != io.EOF {
         return err
@@ -431,7 +433,7 @@ func handlerClientTx(p []byte) error {
         return errors.New("handlerClientTx() reports unexpected EOF in write stream")
     }
 
-    return nil
+    return io.EOF
 }
 
 func handlerServerTx(p []byte) error {
@@ -442,7 +444,7 @@ func handlerServerTx(p []byte) error {
         if err != io.EOF {
             return err
         }
-        D("sent [" + util.IntToString(len(p)) + " bytes]: " + string(p))
+        D("server sent [" + util.IntToString(len(p)) + " bytes]: " + string(p))
 
         if txLen != len(p) {
             return errors.New("handlerServerTx() reports unexpected EOF in write stream")
