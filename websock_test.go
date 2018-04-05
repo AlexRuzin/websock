@@ -58,6 +58,12 @@ const DEFAULT_RX_WAIT_DURATION      time.Duration = 5000 /* milliseconds */
  *   "Encryption": true,
  *   "Compression": true,
  *
+ *   // Tests the server using HTTP and ICMP
+ *   "TestServer": true,
+ *
+ *   // Tests a circuit after PKE negotiation
+ *   "TestCircuit": true,
+ *
  *   // Connectivity settings for both client and server
  *   "Port": 80,
  *   "Path": "/websock.php",
@@ -106,6 +112,7 @@ type ConfigInput struct {
     Encryption                      bool        `json:"Encryption"`
     Compression                     bool        `json:"Compression"`
 
+    TestServer                      bool        `json:"TestServer"`
     TestCircuit                     bool        `json:"TestCircuit"`
 
     Port                            uint16      `json:"Port"`
@@ -181,27 +188,34 @@ func startServerMode(config ConfigInput) (*NetChannelService, error) {
 
             return 0
         }(config.Verbosity) |
-            func(useEncryption bool) FlagVal {
-                if useEncryption == true {
-                    return FLAG_ENCRYPT
-                }
+        func(useEncryption bool) FlagVal {
+            if useEncryption == true {
+                return FLAG_ENCRYPT
+            }
 
-                return 0
-            }(config.Encryption) |
-            func(useCompression bool) FlagVal {
-                if useCompression == true {
-                    return FLAG_COMPRESS
-                }
+            return 0
+        }(config.Encryption) |
+        func(useCompression bool) FlagVal {
+            if useCompression == true {
+                return FLAG_COMPRESS
+            }
 
-                return 0
-            }(config.Compression) |
-            func (testCircuit bool) FlagVal {
-                if testCircuit == true {
-                    return FLAG_TEST_CIRCUIT
-                }
+            return 0
+        }(config.Compression) |
+        func (testCircuit bool) FlagVal {
+            if testCircuit == true {
+                return FLAG_TEST_CIRCUIT
+            }
 
-                return 0
-            } (config.TestCircuit),
+            return 0
+        } (config.TestCircuit) |
+        func (pingServer bool) FlagVal {
+            if pingServer == true {
+                return FLAG_PING_SERVER
+            }
+
+            return 0
+        } (config.TestServer),
         incomingClientHandler)
     if createStatus != nil {
         panic(createStatus.Error())
@@ -226,28 +240,34 @@ func startClientMode(config ConfigInput) (*NetChannelClient, error) {
 
             return 0
         }(config.Verbosity) |
-            func(useEncryption bool) FlagVal {
-                if useEncryption == true {
-                    return FLAG_ENCRYPT
-                }
+        func(useEncryption bool) FlagVal {
+            if useEncryption == true {
+                return FLAG_ENCRYPT
+            }
 
-                return 0
-            }(config.Encryption) |
-            func(useCompression bool) FlagVal {
-                if useCompression == true {
-                    return FLAG_COMPRESS
-                }
+            return 0
+        }(config.Encryption) |
+        func(useCompression bool) FlagVal {
+            if useCompression == true {
+                return FLAG_COMPRESS
+            }
 
-                return 0
-            }(config.Compression) |
-            func (testCircuit bool) FlagVal {
-                if testCircuit == true {
-                    return FLAG_TEST_CIRCUIT
-                }
+            return 0
+        }(config.Compression) |
+        func (testCircuit bool) FlagVal {
+            if testCircuit == true {
+                return FLAG_TEST_CIRCUIT
+            }
 
-                return 0
-            } (config.TestCircuit),
-    )
+            return 0
+        } (config.TestCircuit) |
+        func (pingServer bool) FlagVal {
+            if pingServer == true {
+                return FLAG_PING_SERVER
+            }
+
+            return 0
+        } (config.TestServer))
     if buildStatus != nil {
         panic(buildStatus.Error())
     }

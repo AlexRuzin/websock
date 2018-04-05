@@ -3,10 +3,11 @@
   "Verbosity": true,
   "Encryption": true,
   "Compression": true,
+  "TestServer": true,
   "TestCircuit": false,
 
   "Port": 80,
-  "Path": "/magic.php",
+  "Path": "/websock.php",
   "Domain": "8.8.8.8",
 
   "ClientTX": false,

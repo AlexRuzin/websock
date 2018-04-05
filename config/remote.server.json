@@ -3,6 +3,7 @@
   "Verbosity": true,
   "Encryption": true,
   "Compression": true,
+  "TestServer": true,
   "TestCircuit": false,
 
   "Port": 2222,

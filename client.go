@@ -30,15 +30,15 @@ import (
     "strings"
     "crypto"
     "strconv"
+    "net"
     "net/url"
     "net/http"
     "io/ioutil"
 
-
     "github.com/AlexRuzin/util"
     "github.com/wsddn/go-ecdh"
-    "src/github.com/tatsushid/go-fastping"
-    "net"
+
+    "github.com/tatsushid/go-fastping"
 )
 
 type NetChannelClient struct {
@@ -48,7 +48,10 @@ type NetChannelClient struct {
     path                string
     host                string
     controllerURL       *url.URL
+
+    /* Circuit tests */
     testCircuit         bool
+    pingServer          bool
 
     /* Identifiers for the client */
     clientId            []byte
@@ -124,14 +127,6 @@ func (f *NetChannelClient) Len() int {
     return f.responseData.Len()
 }
 
-/*
- * NOTE: this function is not implemented
- */
-var (
-    WAIT_TIMEOUT_REACHED    = util.RetErrStr("timeout reached")
-    WAIT_DATA_RECEIVED      = util.RetErrStr("data received")
-    WAIT_CLOSED             = util.RetErrStr("socket closed")
-)
 func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
     if f.connected == false {
         return 0, util.RetErrStr("Wait(): client not connected")
@@ -160,11 +155,11 @@ func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen 
 }
 
 func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
-    if (flags & FLAG_DO_NOT_USE) == 1 {
+    if (flags & FLAG_DO_NOT_USE) == 1  {
         return nil, util.RetErrStr("Invalid flag: FLAG_DO_NOT_USE")
     }
 
-    if (flags & FLAG_ENCRYPT) == 0 {
+    if !((flags & FLAG_ENCRYPT) > 1) {
         return nil, util.RetErrStr("FLAG_ENCRYPT is a mandatory switch for the `flags` parameter")
     }
 
@@ -206,6 +201,16 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         transport:          nil,
         request:            nil,
         config:             tmpConfig,
+        testCircuit:        false,
+        pingServer:         false,
+    }
+
+    if (flags & FLAG_TEST_CIRCUIT) > 0 {
+        ioChannel.testCircuit = true
+    }
+
+    if (flags & FLAG_PING_SERVER) > 0 {
+        ioChannel.pingServer = true
     }
 
     if (ioChannel.flags & FLAG_DEBUG) > 1 {
@@ -219,8 +224,10 @@ func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Determine if we can pull anything from the target URI
      */
-    if checkServerStatus := checkServerAliveStatus(f.controllerURL.String()); checkServerStatus != ERROR_SERVER_UP {
-        return checkServerStatus
+    if f.pingServer == true {
+        if checkServerStatus := checkServerAliveStatus(f.controllerURL.String()); checkServerStatus != ERROR_SERVER_UP {
+            return checkServerStatus
+        }
     }
 
     /* Transmit and receive public keys, generate secret */
@@ -233,7 +240,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
     /*
      * Test the circuit
      */
-    if (f.flags & FLAG_TEST_CIRCUIT) > 0 {
+    if f.testCircuit == true {
         if circuitStatus := f.testCircuitRoutine(); circuitStatus != nil {
             f.Close()
             return circuitStatus
