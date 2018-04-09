@@ -69,7 +69,7 @@ var (
     ERROR_NONE              error = nil
     ERROR_SERVER_DOWN       = util.RetErrStr("server is down")
     ERROR_SERVER_UP         = util.RetErrStr("server is up")
-    ERROR_INVALID_URI       = util.RetErrStr("invalid URI")
+    ERROR_INVALID_URI       = util.RetErrStr("invalid URI -- DNS resolve issue?")
 )
 
 func returnCommandString(flag FlagVal, config ProtocolConfig) ([]byte, error) {
