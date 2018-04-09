@@ -75,7 +75,9 @@ ServerInstance, err = websock.CreateServer("/gate.php", /* NOTE: The URI is requ
                                            80, 
                                            FLAG_ENCRYPT  /* Mandatory */ | 
                                            FLAG_COMPRESS /* Optional -- experimental */ | 
-                                           FLAG_DEBUG    /* Optional -- verbosity in debug output */,
+                                           FLAG_DEBUG    /* Optional -- verbosity in debug output */ |
+                                           FLAG_PING_SERVER /* Optional -- Check that the server is alive */ |
+                                           FLAG_TEST_CIRCUIT /* Recommended -- Check that the client/server stream is alive */,
                                            clientHandlerFunction)
 if err != nil {
     panic(err.Error())
