@@ -258,7 +258,6 @@ func (f *NetChannelClient) InitializeCircuit() error {
 
 func checkServerAliveStatus(URI string) error {
     var (
-        pinger          = fastping.NewPinger()
         parsedURI       *url.URL
         parseStatus     error
         remoteAddr      *net.IPAddr
@@ -283,24 +282,26 @@ func checkServerAliveStatus(URI string) error {
     }
 
     /* Test ping */
-    if serverStatus := func (ping *fastping.Pinger, addr net.IPAddr) error {
+    const numPings = 5
+    if serverStatus := func (addr net.IPAddr) error {
+        var ping = fastping.NewPinger()
         ping.AddIPAddr(&addr)
-        ping.OnRecv = func(addr *net.IPAddr, rtt time.Duration) { }
-
-        for i := 0; i != 5; i += 1 {
-            ping.Run()
+        ping.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
+            reachable = true
         }
 
-        ping.OnIdle = func () {
-            reachable = true
+        for i := 0; i != numPings; i += 1 {
+            if err := ping.Run(); err != nil {
+                reachable = false
+            }
         }
 
         if reachable == false {
             return ERROR_SERVER_DOWN
         }
 
-        return nil
-    } (pinger, *remoteAddr); serverStatus == ERROR_SERVER_DOWN {
+        return ERROR_SERVER_UP
+    } (*remoteAddr); serverStatus != ERROR_SERVER_UP {
         return serverStatus
     }
 
