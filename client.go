@@ -71,7 +71,7 @@ type NetChannelClient struct {
     /* Request elements */
     transport           *http.Transport
     request             *http.Request
-    cancelledSync       sync.Mutex
+    transmitSync        sync.Mutex
 
     /* Main config */
     config              *ProtocolConfig
@@ -251,7 +251,7 @@ func (f *NetChannelClient) InitializeCircuit() error {
      * Keep sending POSTs until some data is written to the controller write interface
      */
     checkWriteThread(f)
-    util.SleepSeconds(5)
+    util.Sleep(100 * time.Millisecond)
 
     return nil
 }
@@ -323,8 +323,8 @@ func checkWriteThread(client *NetChannelClient) {
      */
     go func (client *NetChannelClient) {
         for {
-            read, written, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
-            if err == io.EOF && (read + written) == 0 {
+            read, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
+            if err == io.EOF && read == 0 {
                 /* Connection is closed due to a Write() request */
                 if (client.flags & FLAG_DEBUG) > 0 && read == 0 {
                     datetime := func() string {
@@ -333,6 +333,11 @@ func checkWriteThread(client *NetChannelClient) {
                     util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
                 }
                 util.Sleep(10 * time.Millisecond)
+                continue
+            }
+
+            if read != 0 {
+                /* Data inbound from server */
                 continue
             }
 
@@ -411,10 +416,8 @@ func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
     }
 
     if f.transport != nil {
-        f.cancelledSync.Lock()
         f.transport.CancelRequest(f.request)
     }
-    f.cancelledSync.Lock()
 
     _, wrote, err := f.writeStream(p, 0)
     if err != io.EOF {
@@ -609,6 +612,9 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
 }
 
 func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[string]string) ([]byte, error) {
+    f.transmitSync.Lock()
+    defer f.transmitSync.Unlock()
+
     var (
         req             *http.Request
         resp            *http.Response
@@ -683,17 +689,9 @@ func (f *NetChannelClient) waitForWriteTxCancel(httpRequestInput *http.Request) 
         /* Forced write request -- the request is cancelled, so permit another transmit */
         f.transport    = nil
         f.request      = nil
-        f.cancelledSync.Unlock()
         return nil, nil
     }
     defer close(respIo)
-
-    /* PKE doesn't require this */
-    defer func(d bool) {
-        if d == true {
-            f.cancelledSync.Unlock()
-        }
-    } (wasItCancelled)
 
     /*
      * The timeout for FLAG_CHECK_STREAM_DATA was not reached, and the server has transmitted data
