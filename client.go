@@ -309,7 +309,7 @@ func checkServerAliveStatus(URI string) error {
         response        *http.Response
         responseStatus  error
     )
-    if response, responseStatus = http.Get(URI); responseStatus != nil && response != nil {
+    if response, responseStatus = http.Get(URI); responseStatus != nil || response == nil {
         return ERROR_SERVER_DOWN
     }
 
