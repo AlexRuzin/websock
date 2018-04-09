@@ -327,16 +327,11 @@ func checkWriteThread(client *NetChannelClient) {
             if err == io.EOF && read == 0 {
                 /* Connection is closed due to a Write() request */
                 if (client.flags & FLAG_DEBUG) > 0 && read == 0 {
-                    datetime := func() string {
-                        return time.Now().String()
-                    }()
-                    util.DebugOut("[" + datetime + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
+                    util.DebugOut("[" + time.Now().String() + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
                 }
                 util.Sleep(10 * time.Millisecond)
                 continue
-            }
-
-            if read != 0 {
+            } else if read != 0 {
                 /* Data inbound from server */
                 continue
             }
