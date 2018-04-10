@@ -72,6 +72,7 @@ type NetChannelClient struct {
     transport           *http.Transport
     request             *http.Request
     transmitSync        sync.Mutex
+    getReqKilled        bool
 
     /* Main config */
     config              *ProtocolConfig
@@ -203,6 +204,7 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         config:             tmpConfig,
         testCircuit:        false,
         pingServer:         false,
+        getReqKilled:       false,
     }
 
     if (flags & FLAG_TEST_CIRCUIT) > 0 {
@@ -323,16 +325,18 @@ func checkWriteThread(client *NetChannelClient) {
      */
     go func (client *NetChannelClient) {
         for {
+            client.getReqKilled = false
             read, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
             if err == io.EOF && read == 0 {
                 /* Connection is closed due to a Write() request */
-                if (client.flags & FLAG_DEBUG) > 0 && read == 0 {
+                if (client.flags & FLAG_DEBUG) > 0 && read == 0 && client.getReqKilled == false {
                     util.DebugOut("[" + time.Now().String() + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
                 }
-                util.Sleep(10 * time.Millisecond)
+                util.Sleep(100 * time.Millisecond)
                 continue
             } else if read != 0 {
                 /* Data inbound from server */
+                util.Sleep(100 * time.Millisecond)
                 continue
             }
 
@@ -659,7 +663,6 @@ func (f *NetChannelClient) waitForWriteTxCancel(httpRequestInput *http.Request) 
     f.request               = httpRequestInput
     f.transport             = tr
 
-    wasItCancelled          := false
     go func (httpRequest *http.Request) {
         util.Sleep(10 * time.Millisecond)
         var (
@@ -668,7 +671,6 @@ func (f *NetChannelClient) waitForWriteTxCancel(httpRequestInput *http.Request) 
         )
         if response, rxStatus = httpClient.Do(httpRequest); rxStatus != nil {
             /* If cancelled, the channel will close and the HTTP request will be cleaned up */
-            wasItCancelled = true
             close(respIo)
             return
         }
@@ -684,6 +686,7 @@ func (f *NetChannelClient) waitForWriteTxCancel(httpRequestInput *http.Request) 
         /* Forced write request -- the request is cancelled, so permit another transmit */
         f.transport    = nil
         f.request      = nil
+        f.getReqKilled = true
         return nil, nil
     }
     defer close(respIo)
