@@ -3,7 +3,7 @@
   "Verbosity": true,
   "Encryption": true,
   "Compression": true,
-  "TestServer": true,
+  "TestServer": false,
   "TestCircuit": false,
 
   "Port": 2222,
@@ -17,8 +17,8 @@
   "ClientTXDataMax": 64,
   "ClientTXDataStatic": true,
 
-  "ServerTX": false,
-  "ServerTXTimeMin": 100,
+  "ServerTX": true,
+  "ServerTXTimeMin": 1000,
   "ServerTXTimeMax": 10000,
   "ServerTXDataMin": 16,
   "ServerTXDataMax": 64,
