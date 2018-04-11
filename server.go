@@ -68,7 +68,7 @@ var channelService          *NetChannelService
 /*
  * Channel for inbound clients
  */
-var clientIO                = make(chan *NetInstance)
+var clientIO                chan *NetInstance
 
 type NetInstance struct {
     /* Unique identifier that represents the client connection */
@@ -168,8 +168,8 @@ func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, 
             break
         }
 
-        if f.Len() > 0 {
-            responseLen = f.Len()
+        responseLen = f.Len()
+        if responseLen > 0 {
             err = WAIT_DATA_RECEIVED
             break
         }
@@ -199,9 +199,11 @@ func (f *NetInstance) Write(p []byte) (wrote int, err error) {
 }
 
 func (f *NetChannelService) startListeners() {
+    /* Create the clientIO channel */
+    clientIO = make(chan *NetInstance)
     go func (svc *NetChannelService) {
-        var wg sync.WaitGroup
-        wg.Add(1)
+        // var wg sync.WaitGroup
+        //wg.Add(1)
 
         for {
             client, ok := <- clientIO
@@ -219,6 +221,8 @@ func (f *NetChannelService) startListeners() {
             svc.clientSync.Unlock()
             client.connected = true
         }
+
+        panic(util.RetErrStr("inbound client channel has been terminated"))
     } (f)
 
     go func(svc *NetChannelService) {
@@ -576,6 +580,8 @@ func (f *NetInstance) enqueue(p []byte) {
             next:   nil,
             last:   nil,
         }
+
+        return
     }
 
     f.clientRX.last = &rxElement{
@@ -595,14 +601,19 @@ func (f *NetInstance) dequeue() ([]byte, error) {
         return nil, nil
     }
 
-    for t := f.clientRX;;t = t.next {
-        if t.next == nil {
-            out := t.data.Bytes()
-            t.last.next = nil
-
-            return out, nil
-        }
+    if f.clientRX.next == nil {
+        out := f.clientRX.data.Bytes()
+        f.clientRX = nil
+        return out, nil
     }
+
+    endElement := f.clientRX
+    for ;endElement.next != nil; endElement = endElement.next {}
+    var out = endElement.data.Bytes()
+    t := endElement.last
+    t.next = nil
+
+    return out, nil
 }
 
 func (f *NetInstance) queueLen() int {
