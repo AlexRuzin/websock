@@ -688,8 +688,9 @@ func (f *NetChannelClient) waitForWriteTxCancel(httpRequestInput *http.Request) 
         f.request      = nil
         f.getReqKilled = true
         return nil, nil
+    } else {
+        defer close(respIo)
     }
-    defer close(respIo)
 
     /*
      * The timeout for FLAG_CHECK_STREAM_DATA was not reached, and the server has transmitted data
