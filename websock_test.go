@@ -411,6 +411,7 @@ func clientTX(config ConfigInput) {
 func serverTX(config ConfigInput) {
     /* Transmit data periodically */
     if config.ServerTX == true {
+        /* Transmit data */
         go func (config ConfigInput) {
             var transmitStatus error
             for {
@@ -426,11 +427,33 @@ func serverTX(config ConfigInput) {
 
                 if transmitStatus != nil {
                     panic(transmitStatus)
-
                 }
             }
         } (config)
     }
+
+    /* Receive data periodically from the socket/stream */
+    go func () {
+        for _, v := range mainServer.clientMap {
+            go func(client *NetInstance) {
+                //atomic.AddInt32(&totalReadThreads, 1)
+
+                for {
+                    if incomingLength, rxStatus := v.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
+                        rawData := make([]byte, incomingLength)
+                        v.Read(rawData)
+                        D("from client: (" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
+                    }
+
+                    util.Sleep(100 * time.Millisecond)
+                }
+
+                //atomic.AddInt32(&totalReadThreads, -1)
+            }(v)
+
+            util.WaitForever()
+        }
+    }()
 }
 
 func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p []byte) error) error {
