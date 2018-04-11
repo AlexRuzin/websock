@@ -79,7 +79,7 @@ type NetInstance struct {
     secret                  []byte
     clientId                []byte
     clientTX                *bytes.Buffer   /* Data waiting to be transmitted */
-    clientRX                rxBuffer        /* Data that is waiting to be read, using a custom FIFO queue */
+    clientRX                *rxElement        /* Data that is waiting to be read, using a custom FIFO queue */
     iOSync                  sync.Mutex
 
     connected               bool
@@ -150,7 +150,7 @@ func (f *NetInstance) Close() {
  * Retrieves length of the buffer at index 0
  */
 func (f *NetInstance) Len() int {
-    return f.clientRX.len()
+    return f.queueLen()
 }
 
 func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
@@ -327,7 +327,7 @@ func handleNewClient(marshalledKey string, reader *http.Request, writer *http.Re
         secret:             secret,
         clientId:           clientId[:],
         ClientIdString:     hex.EncodeToString(clientId[:]),
-        clientRX:           rxBuffer{},
+        clientRX:           nil,
         clientTX:           &bytes.Buffer{},
         connected:          false,
         RequestURI:         reader.RequestURI,
@@ -500,10 +500,8 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
 
-    var requestData []byte = rawData
-
     /* Decompression, if required, has already taken place in handleClientRequest() by parsing the TransmissionUnit flags */
-    f.clientRX.enqueue(requestData)
+    f.enqueue(rawData)
 
     /* If there is any data to return, then send it over */
     var otherFlags FlagVal = 0
@@ -535,16 +533,15 @@ func (f *NetInstance) readInternal(p []byte) (int, error) {
         return 0, util.RetErrStr("client not connected")
     }
 
-    if f.clientRX.len() == 0 {
-        return 0, io.EOF
-    }
-
     f.iOSync.Lock()
     defer f.iOSync.Unlock()
 
-    rawData := f.clientRX.dequeue()
-    copy(p, rawData)
+    rawData, _ := f.dequeue()
+    if len(rawData) == 0 {
+        return 0, nil
+    }
 
+    copy(p, rawData)
     return len(rawData), io.EOF
 }
 
@@ -559,6 +556,71 @@ func (f *NetInstance) writeInternal(p []byte) (int, error) {
     f.clientTX.Write(p)
 
     return len(p), io.EOF
+}
+
+type rxElement struct {
+    data            *bytes.Buffer
+
+    next            *rxElement
+    last            *rxElement
+}
+var rxQueueSync     sync.Mutex
+
+func (f *NetInstance) enqueue(p []byte) {
+    rxQueueSync.Lock()
+    defer rxQueueSync.Unlock()
+
+    if f.clientRX == nil {
+        f.clientRX = &rxElement{
+            data:   bytes.NewBuffer(p),
+            next:   nil,
+            last:   nil,
+        }
+    }
+
+    f.clientRX.last = &rxElement{
+            data:   bytes.NewBuffer(p),
+            next:   f.clientRX,
+            last:   nil,
+    }
+
+    f.clientRX = f.clientRX.last
+}
+
+func (f *NetInstance) dequeue() ([]byte, error) {
+    rxQueueSync.Lock()
+    defer rxQueueSync.Unlock()
+
+    if f.clientRX == nil {
+        return nil, nil
+    }
+
+    for t := f.clientRX;;t = t.next {
+        if t.next == nil {
+            out := t.data.Bytes()
+            t.last.next = nil
+
+            return out, nil
+        }
+    }
+}
+
+func (f *NetInstance) queueLen() int {
+    rxQueueSync.Lock()
+    defer rxQueueSync.Unlock()
+
+    if f.clientRX == nil {
+        return 0
+    }
+
+    q := f.clientRX
+    total := 0
+    for q != nil {
+        total += q.data.Len()
+        q = q.next
+    }
+
+    return total
 }
 
 /* HTTP 500 - Internal Server Error */
