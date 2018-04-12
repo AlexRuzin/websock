@@ -402,7 +402,7 @@ func clientTX(config ConfigInput) {
             if incomingLength, rxStatus := mainClient.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
                 rawData := make([]byte, incomingLength)
                 mainClient.Read(rawData)
-                D("from server: (" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
+                D("from server to client (receive): (" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
             }
         }
     } (config)
@@ -442,7 +442,7 @@ func serverTX(config ConfigInput) {
                     if incomingLength, rxStatus := v.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
                         rawData := make([]byte, incomingLength)
                         v.Read(rawData)
-                        D("from client: (" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
+                        D("from client to server: (receive)(" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
                     }
 
                     util.Sleep(100 * time.Millisecond)
@@ -487,7 +487,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 }
 
 func handlerClientTx(p []byte) error {
-    D("to server: (" + util.IntToString(len(p)) + " bytes): " + string(p))
+    D("client to server (transmit) (" + util.IntToString(len(p)) + " bytes): " + string(p))
 
     txLen, err := mainClient.Write(p)
     if err != io.EOF {
@@ -509,7 +509,7 @@ func handlerServerTx(p []byte) error {
         if writeStatus != io.EOF {
             return writeStatus
         }
-        D("to client [" + util.IntToString(len(p)) + " bytes]: " + string(p))
+        D("server to client (transmit) [" + util.IntToString(len(p)) + " bytes]: " + string(p))
 
         if txLen != len(p) {
             return errors.New("handlerServerTx() reports unexpected EOF in write stream")
