@@ -24,7 +24,6 @@ package websock
 
 import (
     "io"
-    "sync"
     "time"
     "bytes"
     "strings"
@@ -66,12 +65,10 @@ type NetChannelClient struct {
 
     /* Data coming in from the server */
     responseData        *bytes.Buffer
-    responseSync        sync.Mutex
 
     /* Request elements */
     transport           *http.Transport
     request             *http.Request
-    transmitSync        sync.Mutex
     getReqKilled        bool
 
     /* Main config */
@@ -90,12 +87,11 @@ type transferUnit struct {
 }
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
-    read, err = f.readInternal(p)
-
     if f.connected == false {
         return 0, util.RetErrStr("Read(): client has closed the connection")
     }
 
+    read, err = f.readInternal(p)
     if err != io.EOF {
         return 0, err
     }
@@ -104,12 +100,11 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
 }
 
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
-    written, err = f.writeInternal(p)
-
     if f.connected == false {
         return 0, util.RetErrStr("Write(): client has closed the connection")
     }
 
+    written, err = f.writeInternal(p)
     if err != io.EOF {
         return 0, err
     }
@@ -120,10 +115,9 @@ func (f *NetChannelClient) Write(p []byte) (written int, err error) {
 func (f *NetChannelClient) Len() int {
     if f.connected == false {
         return 0
+    } else if f.responseData == nil {
+        return 0
     }
-
-    f.responseSync.Lock()
-    defer f.responseSync.Unlock()
 
     return f.responseData.Len()
 }
@@ -198,7 +192,7 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         path:               mainURL.Path,
         host:               mainURL.Host,
         secret:             nil,
-        responseData:       &bytes.Buffer{},
+        responseData:       nil,
         transport:          nil,
         request:            nil,
         config:             tmpConfig,
@@ -450,14 +444,13 @@ func (f *NetChannelClient) testCircuitRoutine() error {
 }
 
 func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int, written int, err error) {
-    if (flags & FLAG_TERMINATE_CONNECTION) > 0 {
-        return 0, 0, util.RetErrStr("writeStream(): Client has forced the connection to close")
-    }
-
     if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
         return 0,0, util.RetErrStr("writeStream(): client not connected")
     }
 
+    if (flags & FLAG_TERMINATE_CONNECTION) > 0 {
+        rawData, _ = returnCommandString(FLAG_TERMINATE_CONNECTION, *f.config)
+    }
     if rawData == nil && (flags & FLAG_CHECK_STREAM_DATA) > 0 {
         rawData, _ = returnCommandString(FLAG_CHECK_STREAM_DATA, *f.config)
     }
@@ -483,7 +476,7 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
 
     if read != 0 {
         /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        if written, err = f.processHTTPresponse(body, flags); err != nil {
+        if _, err = f.processHTTPresponse(body, flags); err != nil {
             return 0, 0, err
         }
 
@@ -495,7 +488,7 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
 
 func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (written int, err error) {
     /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-    clientId, responseData, _, err := decryptData(string(body), f.secret)
+    clientId, rawData, _, err := decryptData(string(body), f.secret)
     if err != nil {
         return 0, err
     }
@@ -503,18 +496,13 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
         return 0, util.RetErrStr("Invalid server response")
     }
 
-    f.responseSync.Lock()
-    defer f.responseSync.Unlock()
-
-    var rawData = responseData
-
     if (f.flags & FLAG_COMPRESS) > 0 && !((flags & FLAG_TEST_CONNECTION) > 0) {
         var (
             streamStatus        error = nil
             decompressed        []byte
         )
 
-        decompressed, streamStatus = util.DecompressStream(responseData)
+        decompressed, streamStatus = util.DecompressStream(rawData)
         if streamStatus != nil {
             return 0, err
         }
@@ -523,6 +511,9 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
     }
 
     /* Write either the compressed or decompressed stream */
+    if f.responseData == nil {
+        f.responseData = &bytes.Buffer{}
+    }
     if written, err = f.responseData.Write(rawData); err != nil {
         return written, err
     }
@@ -596,24 +587,22 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
         return 0, util.RetErrStr("readStream: client not connected")
     }
 
+    if f.responseData == nil {
+        return 0, io.EOF
+    }
+
     read = f.responseData.Len()
     if read == 0 {
         return 0, io.EOF
     }
 
-    f.responseSync.Lock()
-    defer f.responseSync.Unlock()
-
     f.responseData.Read(p)
-    f.responseData.Reset() /* FIXME */
+    f.responseData = nil
 
     return read, io.EOF
 }
 
 func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[string]string) ([]byte, error) {
-    f.transmitSync.Lock()
-    defer f.transmitSync.Unlock()
-
     var (
         req             *http.Request
         resp            *http.Response
