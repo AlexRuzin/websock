@@ -55,7 +55,6 @@ type NetChannelService struct {
     port                    int16
     pathGate                string
     clientMap               map[string]*NetInstance
-    clientSync              sync.Mutex
 
     config                  *ProtocolConfig
 }
@@ -131,12 +130,11 @@ func CreateServer(pathGate string, port int16, flags FlagVal, handler func(clien
 }
 
 func (f *NetChannelService) closeClient(client *NetInstance) {
-    f.clientSync.Lock()
     delete(f.clientMap, client.ClientIdString)
-    f.clientSync.Unlock()
 }
 
 func (f *NetChannelService) CloseService() {
+    panic("Closing primary service for handling websock protocol")
     if clientIO != nil {
         close(clientIO)
     }
@@ -211,14 +209,11 @@ func (f *NetChannelService) startListeners() {
                 break /* Close the processor */
             }
 
-            svc.clientSync.Lock()
-
             svc.clientMap[client.ClientIdString] = client
             if err := svc.IncomingHandler(client, svc); err != nil {
                 svc.closeClient(client)
             }
 
-            svc.clientSync.Unlock()
             client.connected = true
         }
 
@@ -226,12 +221,10 @@ func (f *NetChannelService) startListeners() {
     } (f)
 
     go func(svc *NetChannelService) {
-        /* FIXME -- find a way of closing this thread once CloseService() is invoked */
         http.HandleFunc(svc.pathGate, handleClientRequest)
-
         svc.sendDebug("Handling request for path :" + svc.pathGate)
         if err := http.ListenAndServe(":" + util.IntToString(int(f.port)),nil); err != nil {
-            util.ThrowN("panic: Failure in loading httpd.")
+            panic("panic: Failure in loading httpd -- port already used for another service?")
         }
     } (f)
 }
@@ -396,7 +389,6 @@ func parseExistingClient(reader *http.Request, writer *http.ResponseWriter) {
 
             if err := client.parseClientData(data, *writer); err != nil {
                 channelService.closeClient(client)
-                return
             }
 
             return /* The appropriate ClientData has been stored, so no more need for this method */
@@ -492,7 +484,7 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
 
         case f.service.config.TermConnect: // FLAG_TERMINATE_CONNECTION
             /* FIXME */
-            panic("terminating connection")
+            return ERROR_TERMINATE
         }
     }
 

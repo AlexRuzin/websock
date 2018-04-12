@@ -68,6 +68,7 @@ var (
     ERROR_SERVER_DOWN       = util.RetErrStr("server is down")
     ERROR_SERVER_UP         = util.RetErrStr("server is up")
     ERROR_INVALID_URI       = util.RetErrStr("invalid URI -- DNS resolve issue?")
+    ERROR_TERMINATE         = util.RetErrStr("client requested a terminate command")
 )
 
 func returnCommandString(flag FlagVal, config ProtocolConfig) ([]byte, error) {
