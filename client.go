@@ -87,10 +87,6 @@ type transferUnit struct {
 }
 
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("Read(): client has closed the connection")
-    }
-
     read, err = f.readInternal(p)
     if err != io.EOF {
         return 0, err
@@ -100,10 +96,6 @@ func (f *NetChannelClient) Read(p []byte) (read int, err error) {
 }
 
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("Write(): client has closed the connection")
-    }
-
     written, err = f.writeInternal(p)
     if err != io.EOF {
         return 0, err
@@ -123,10 +115,6 @@ func (f *NetChannelClient) Len() int {
 }
 
 func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("Wait(): client not connected")
-    }
-
     responseLen = 0
     err = WAIT_TIMEOUT_REACHED
 
@@ -583,7 +571,7 @@ func (f *NetChannelClient) compressEncryptData(rawData []byte, flags FlagVal) (e
 }
 
 func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err error) {
-    if !((flags & FLAG_TEST_CONNECTION) > 0) &&f.connected == false {
+    if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
         return 0, util.RetErrStr("readStream: client not connected")
     }
 
@@ -597,7 +585,6 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     }
 
     f.responseData.Read(p)
-    f.responseData = nil
 
     return read, io.EOF
 }

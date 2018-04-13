@@ -152,30 +152,7 @@ func (f *NetInstance) Len() int {
 }
 
 func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("client not connected")
-    }
-
-    responseLen = 0
-    err = WAIT_TIMEOUT_REACHED
-
-    for i := timeoutMilliseconds / 100; i != 0; i -= 1 {
-        if f.connected == false {
-            responseLen = -1
-            err = WAIT_CLOSED
-            break
-        }
-
-        responseLen = f.Len()
-        if responseLen > 0 {
-            err = WAIT_DATA_RECEIVED
-            break
-        }
-
-        util.Sleep(100 * time.Millisecond)
-    }
-
-    return
+    return f.waitInternal(timeoutMilliseconds)
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
@@ -200,9 +177,8 @@ func (f *NetChannelService) startListeners() {
     /* Create the clientIO channel */
     clientIO = make(chan *NetInstance)
     go func (svc *NetChannelService) {
-        // var wg sync.WaitGroup
-        //wg.Add(1)
-
+        var wg sync.WaitGroup
+        wg.Add(1)
         for {
             client, ok := <- clientIO
             if !ok {
@@ -231,9 +207,6 @@ func (f *NetChannelService) startListeners() {
 
 /* Create circuit -OR- process gate requests */
 func handleClientRequest(writer http.ResponseWriter, reader *http.Request) {
-    if clientIO == nil {
-        util.RetErrStr("Cannot handle request without initializing processor")
-    }
     defer reader.Body.Close()
 
     /* Contains the marshalled Public Key after the initial decoding */
@@ -426,10 +399,6 @@ func decodePublicKeyParameters(reader *http.Request) (clientKey *string, err err
 }
 
 func (f *NetInstance) cmdWaitAndTransmitData(writer http.ResponseWriter) error {
-    if f.connected == false {
-        return util.RetErrStr("client not connected")
-    }
-
     var timeout = f.service.config.C2ResponseTimeout
     for ; timeout != 0; timeout -= 1 {
         if f.clientTX.Len() != 0 {
@@ -437,9 +406,6 @@ func (f *NetInstance) cmdWaitAndTransmitData(writer http.ResponseWriter) error {
         }
         util.Sleep(1 * time.Second)
     }
-
-    f.iOSync.Lock()
-    defer f.iOSync.Unlock() /* We break out of the loop so defer is OK */
 
     if timeout == 0 || f.clientTX.Len() == 0 {
         /* Time out -- no data to be sent */
@@ -488,14 +454,6 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
         }
     }
 
-    /* Append data to read buffer */
-    if f.connected == false {
-        return util.RetErrStr("client not connected")
-    }
-
-    f.iOSync.Lock()
-    defer f.iOSync.Unlock()
-
     /* Decompression, if required, has already taken place in handleClientRequest() by parsing the TransmissionUnit flags */
     f.enqueue(rawData)
 
@@ -522,6 +480,33 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     writer.WriteHeader(http.StatusOK)
 
     return nil
+}
+
+func (f *NetInstance) waitInternal(timeoutMilliseconds time.Duration) (responseLen int, err error) {
+    if f.connected == false {
+        return 0, util.RetErrStr("client not connected")
+    }
+
+    responseLen = 0
+    err = WAIT_TIMEOUT_REACHED
+
+    for i := timeoutMilliseconds / 100; i != 0; i -= 1 {
+        if f.connected == false {
+            responseLen = -1
+            err = WAIT_CLOSED
+            break
+        }
+
+        responseLen = f.Len()
+        if responseLen > 0 {
+            err = WAIT_DATA_RECEIVED
+            break
+        }
+
+        util.Sleep(100 * time.Millisecond)
+    }
+
+    return
 }
 
 func (f *NetInstance) readInternal(p []byte) (int, error) {
