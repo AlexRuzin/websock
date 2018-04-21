@@ -19,6 +19,42 @@ Development note: Please note that this software is currently under heavy develo
 4. Key negotiation uses a covert set of key/value pairs in the HTTP POST parameter. The response, as well, is xor-encoded using an ephemeral key.
 5. Simple use of the Reader/Writer interfaces to read/write to the stream. 
 
+## Example and Testing library
+The testing library, located at `websock_test.go`, reads a JSON configuration file that configures a `server` or `client` subsystem. For example, to use the JSON file, if not the default `config/config.json` we may use:
+
+```json
+{
+  "Server": false,
+  "Verbosity": true,
+  "Encryption": true,
+  "Compression": true,
+  "TestServer": true,
+  "TestCircuit": true,
+
+  "Port": 2222,
+  "Path": "/websock.php",
+  "Domain": "127.0.0.1",
+
+  "ClientTX": true,
+  "ClientTXTimeMin": 5000,
+  "ClientTXTimeMax": 5000,
+  "ClientTXDataMin": 16,
+  "ClientTXDataMax": 64,
+  "ClientTXDataStatic": true,
+
+  "ServerTX": false,
+  "ServerTXTimeMin": 500,
+  "ServerTXTimeMax": 2000,
+  "ServerTXDataMin": 16,
+  "ServerTXDataMax": 64,
+  "ServerTXDataStatic": true,
+
+  "ModuleName": "websock"
+}
+```
+
+Each object in the JSON configuration file is self explanatory, use the default configurations located in the `/config` directory for working samples.
+
 ## Server API [`NetChannelService`]
 
 The API consists of the initialization functions along with the methods used to read/write to the streams. NOTE: The ```FLAG_COMPRESS``` logic is as of right now implemented, but not fully tested. Please be advised that using ```FLAG_COMPRESS``` may be dangerous in already stable code, although its removal should not affect any other subsystem. 
