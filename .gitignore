@@ -1,3 +1,4 @@
 test_db.db
 config.remote.client.json
 .idea
+*.swp
