@@ -463,7 +463,7 @@ func serverTX(config ConfigInput) {
                     if incomingLength, rxStatus := v.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
                         rawData := make([]byte, incomingLength)
                         v.Read(rawData)
-                        D(" (" + util.IntToString(int(serverDebugCounter)) +"from client to server: (receive)(" +
+                        D(" (" + util.IntToString(int(serverDebugCounter)) +") from client to server: (receive)(" +
                             util.IntToString(incomingLength) + " bytes): " + string(rawData))
                         atomic.AddInt32(&serverDebugCounter, 1)
                     }
@@ -510,7 +510,7 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 }
 
 func handlerClientTx(p []byte) error {
-    D(" (" + util.IntToString(int(clientDebugCounter)) + "client to server (transmit) (" +
+    D(" (" + util.IntToString(int(clientDebugCounter)) + ") client to server (transmit) (" +
         util.IntToString(len(p)) + " bytes): " + string(p))
     atomic.AddInt32(&clientDebugCounter, 1)
 
