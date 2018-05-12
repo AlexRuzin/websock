@@ -28,6 +28,7 @@ import (
     "testing"
     "errors"
     "strconv"
+    "sync/atomic"
     "time"
     "io"
     "encoding/json"
@@ -138,6 +139,14 @@ type ConfigInput struct {
     /* This value must be static "websock" */
     ModuleName                      string      `json:"ModuleName"`
 }
+
+/*
+ * Store counters for rx/tx debug strings for client server debug outputs
+ */
+var (
+    serverDebugCounter              int32
+    clientDebugCounter              int32
+)
 
 var (
     defaultJSONfilename             = "invalid.file"
@@ -365,6 +374,11 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
 
 func clientTX(config ConfigInput) {
     /*
+     * Initialize counters
+     */
+    clientDebugCounter = 1
+
+    /*
      * Transmit data
      */
     func () {
@@ -402,13 +416,20 @@ func clientTX(config ConfigInput) {
             if incomingLength, rxStatus := mainClient.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
                 rawData := make([]byte, incomingLength)
                 mainClient.Read(rawData)
-                D("from server to client (receive): (" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
+                D(" (" + util.IntToString(int(clientDebugCounter)) + ") from server to client (receive): (" +
+                    util.IntToString(incomingLength) + " bytes): " + string(rawData))
+                atomic.AddInt32(&clientDebugCounter, 1)
             }
         }
     } (config)
 }
 
 func serverTX(config ConfigInput) {
+    /*
+     * Initialize counters
+     */
+    serverDebugCounter = 1
+
     /* Transmit data periodically */
     if config.ServerTX == true {
         /* Transmit data */
@@ -442,7 +463,9 @@ func serverTX(config ConfigInput) {
                     if incomingLength, rxStatus := v.Wait(DEFAULT_RX_WAIT_DURATION); rxStatus == WAIT_DATA_RECEIVED {
                         rawData := make([]byte, incomingLength)
                         v.Read(rawData)
-                        D("from client to server: (receive)(" + util.IntToString(incomingLength) + " bytes): " + string(rawData))
+                        D(" (" + util.IntToString(int(serverDebugCounter)) +"from client to server: (receive)(" +
+                            util.IntToString(incomingLength) + " bytes): " + string(rawData))
+                        atomic.AddInt32(&serverDebugCounter, 1)
                     }
 
                     util.Sleep(100 * time.Millisecond)
@@ -487,7 +510,9 @@ func transmitRawData(minLen uint, maxLen uint, staticData bool, handler func(p [
 }
 
 func handlerClientTx(p []byte) error {
-    D("client to server (transmit) (" + util.IntToString(len(p)) + " bytes): " + string(p))
+    D(" (" + util.IntToString(int(clientDebugCounter)) + "client to server (transmit) (" +
+        util.IntToString(len(p)) + " bytes): " + string(p))
+    atomic.AddInt32(&clientDebugCounter, 1)
 
     txLen, err := mainClient.Write(p)
     if err != io.EOF {
@@ -509,7 +534,9 @@ func handlerServerTx(p []byte) error {
         if writeStatus != io.EOF {
             return writeStatus
         }
-        D("server to client (transmit) [" + util.IntToString(len(p)) + " bytes]: " + string(p))
+        D(" (" + util.IntToString(int(serverDebugCounter)) + ") server to client (transmit) [" +
+            util.IntToString(len(p)) + " bytes]: " + string(p))
+        atomic.AddInt32(&serverDebugCounter, 1)
 
         if txLen != len(p) {
             return errors.New("handlerServerTx() reports unexpected EOF in write stream")
