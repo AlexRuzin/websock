@@ -133,6 +133,7 @@ type ConfigInput struct {
     ClientTXDataMax                 uint        `json:"ClientTXDataMax"`
     ClientTXDataStatic              bool        `json:"ClientTXDataStatic"`
     ClientTxOnce                    bool        `json:"ClientTxOnce"`
+    ClientTxCount                   uint        `json:"ClientTxCount"`
 
     /* Transmission from server configuration */
     ServerTX                        bool        `json:"ServerTX"`
@@ -142,6 +143,7 @@ type ConfigInput struct {
     ServerTXDataMax                 uint        `json:"ServerTXDataMax"`
     ServerTXDataStatic              bool        `json:"ServerTXDataStatic"`
     ServerTxOnce                    bool        `json:"ServerTxOnce"`
+    ServerTxCount                   uint        `json:"ServerTxCount"`
 
     /* This value must be static "websock" */
     ModuleName                      string      `json:"ModuleName"`
@@ -383,8 +385,11 @@ func clientTX(config ConfigInput) {
     /*
      * Initialize counters and tx state flags
      */
-    clientDebugCounter = 1
-    var sendOnce = false
+    var (
+        clientDebugCounter int32 = 1
+        clientTxCounter uint = 0
+        sendOnce = false
+    )
 
     /*
      * Transmit data
@@ -407,14 +412,20 @@ func clientTX(config ConfigInput) {
                             int(config.ClientTXTimeMax))) * time.Millisecond)
                     }
 
-                    if config.ClientTxOnce == true && sendOnce == true {
+                    if config.ClientTxOnce == true && sendOnce == true && config.ClientTxCount == 0 {
                         D("sendOnce triggered, no more data to be sent from the client")
+                        util.WaitForever()
+                    }
+
+                    if config.ClientTxCount != 0 && clientTxCounter == config.ClientTxCount {
+                        D("clientTxCounter triggered, no more data to be sent from the client")
                         util.WaitForever()
                     }
 
                     transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
                         config.ClientTXDataStatic, handlerClientTx)
                     sendOnce = true
+                    clientTxCounter += 1
 
                     if transmitStatus != nil {
                         panic(transmitStatus)
@@ -442,8 +453,11 @@ func serverTX(config ConfigInput) {
     /*
      * Initialize counters and send once state flag
      */
-    serverDebugCounter = 1
-    var sendOnce = false
+    var (
+        serverDebugCounter int32 = 1
+        serverTxCounter uint = 0
+        sendOnce = false
+    )
 
     /* Transmit data periodically */
     if config.ServerTX == true {
@@ -459,14 +473,20 @@ func serverTX(config ConfigInput) {
                         int(config.ServerTXTimeMax))) * time.Millisecond)
                 }
 
-                if config.ServerTxOnce == true && sendOnce == true {
+                if config.ServerTxOnce == true && sendOnce == true && config.ServerTxCount == 0 {
                     D("sendOnce triggered, server has no more data to transmit")
+                    util.WaitForever()
+                }
+
+                if config.ServerTxCount != 0 && serverTxCounter == config.ServerTxCount {
+                    D("serverTxCounter triggered, server has no more data to transmit")
                     util.WaitForever()
                 }
 
                 transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
                     config.ServerTXDataStatic, handlerServerTx)
                 sendOnce = true
+                serverTxCounter += 1
 
                 if transmitStatus != nil {
                     panic(transmitStatus)
