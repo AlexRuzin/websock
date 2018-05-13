@@ -87,6 +87,9 @@ const DEFAULT_RX_WAIT_DURATION      time.Duration = 5000 /* milliseconds */
  *   //  they will be ASCII capitals
  *   "ClientTXDataStatic": true,
  *
+ *   // Transmit on socket only once
+ *   "ClientTxOnce": true,
+ *
  *   // If set to true, the server will transmit data to the client.
  *   //  All other settings below follow the above client convention
  *   "ServerTX": true,
@@ -98,6 +101,8 @@ const DEFAULT_RX_WAIT_DURATION      time.Duration = 5000 /* milliseconds */
  *   "ServerTXDataMax": 64,
  *
  *   "ServerTXDataStatic": true,
+ *
+ *   "ServerTxOnce": true,
  *
  *   // Do not change this setting
  *   "ModuleName": "websock"
@@ -127,6 +132,7 @@ type ConfigInput struct {
     ClientTXDataMin                 uint        `json:"ClientTXDataMin"`
     ClientTXDataMax                 uint        `json:"ClientTXDataMax"`
     ClientTXDataStatic              bool        `json:"ClientTXDataStatic"`
+    ClientTxOnce                    bool        `json:"ClientTxOnce"`
 
     /* Transmission from server configuration */
     ServerTX                        bool        `json:"ServerTX"`
@@ -135,6 +141,7 @@ type ConfigInput struct {
     ServerTXDataMin                 uint        `json:"ServerTXDataMin"`
     ServerTXDataMax                 uint        `json:"ServerTXDataMax"`
     ServerTXDataStatic              bool        `json:"ServerTXDataStatic"`
+    ServerTxOnce                    bool        `json:"ServerTxOnce"`
 
     /* This value must be static "websock" */
     ModuleName                      string      `json:"ModuleName"`
@@ -374,9 +381,10 @@ func incomingClientHandler(client *NetInstance, server *NetChannelService) error
 
 func clientTX(config ConfigInput) {
     /*
-     * Initialize counters
+     * Initialize counters and tx state flags
      */
     clientDebugCounter = 1
+    sendOnce = false
 
     /*
      * Transmit data
@@ -399,8 +407,14 @@ func clientTX(config ConfigInput) {
                             int(config.ClientTXTimeMax))) * time.Millisecond)
                     }
 
+                    if config.ClientTxOnce == true && sendOnce == true {
+                        D("sendOnce triggered, no more data to be sent from the client")
+                        util.WaitForever()
+                    }
+
                     transmitStatus = transmitRawData(config.ClientTXDataMin, config.ClientTXDataMax,
                         config.ClientTXDataStatic, handlerClientTx)
+                    sendOnce = true
 
                     if transmitStatus != nil {
                         panic(transmitStatus)
@@ -426,9 +440,10 @@ func clientTX(config ConfigInput) {
 
 func serverTX(config ConfigInput) {
     /*
-     * Initialize counters
+     * Initialize counters and send once state flag
      */
     serverDebugCounter = 1
+    sendOnce = false
 
     /* Transmit data periodically */
     if config.ServerTX == true {
@@ -443,8 +458,15 @@ func serverTX(config ConfigInput) {
                     util.Sleep(time.Duration(util.RandInt(int(config.ServerTXTimeMin),
                         int(config.ServerTXTimeMax))) * time.Millisecond)
                 }
+
+                if config.ServerTxOnce == true && sendOnce == true {
+                    D("sendOnce triggered, server has no more data to transmit")
+                    util.WaitForever()
+                }
+
                 transmitStatus = transmitRawData(config.ServerTXDataMin, config.ServerTXDataMax,
                     config.ServerTXDataStatic, handlerServerTx)
+                sendOnce = true
 
                 if transmitStatus != nil {
                     panic(transmitStatus)
