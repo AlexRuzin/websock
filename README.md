@@ -41,6 +41,7 @@ The testing library, located at `websock_test.go`, reads a JSON configuration fi
   "ClientTXDataMin": 16,
   "ClientTXDataMax": 64,
   "ClientTXDataStatic": true,
+  "ClientTxOnce":true,
 
   "ServerTX": false,
   "ServerTXTimeMin": 500,
@@ -48,6 +49,7 @@ The testing library, located at `websock_test.go`, reads a JSON configuration fi
   "ServerTXDataMin": 16,
   "ServerTXDataMax": 64,
   "ServerTXDataStatic": true,
+  "ServerTxOnce":true,
 
   "ModuleName": "websock"
 }
@@ -309,22 +311,22 @@ The `websock_test.go`, which uses golang's default `Testing` package, makes use 
   //  they will be ASCII capitals
   "ClientTXDataStatic": true,  
   
+  // Transmit data on the wire only once and then stop
+  "ClientTxOnce":true,
+  
  
   // If set to true, the server will transmit data to the client.
   //  All other settings below follow the above client convention
   "ServerTX": true,  
   
-
   "ServerTXTimeMin": 2,
   "ServerTXTimeMax": 2,  
   
-
   "ServerTXDataMin": 16,
   "ServerTXDataMax": 64,  
   
-
   "ServerTXDataStatic": true,  
-  
+  "ServerTxOnce":true,
 
   // Do not change this setting
   "ModuleName": "websock"
