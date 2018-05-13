@@ -10,12 +10,13 @@
   "Path": "/websock.php",
   "Domain": "127.0.0.1",
 
-  "ClientTX": false,
+  "ClientTX": true,
   "ClientTXTimeMin": 1000,
-  "ClientTXTimeMax": 1000,
+  "ClientTXTimeMax": 5000,
   "ClientTXDataMin": 16,
   "ClientTXDataMax": 64,
-  "ClientTXDataStatic": true,
+  "ClientTXDataStatic": false,
+  "ClientTxOnce":true,
 
   "ServerTX": false,
   "ServerTXTimeMin": 500,
@@ -23,6 +24,7 @@
   "ServerTXDataMin": 16,
   "ServerTXDataMax": 64,
   "ServerTXDataStatic": true,
+  "ClientTxOnce":true,
 
   "ModuleName": "websock"
 }
