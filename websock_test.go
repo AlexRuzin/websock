@@ -384,7 +384,7 @@ func clientTX(config ConfigInput) {
      * Initialize counters and tx state flags
      */
     clientDebugCounter = 1
-    sendOnce = false
+    var sendOnce = false
 
     /*
      * Transmit data
@@ -443,7 +443,7 @@ func serverTX(config ConfigInput) {
      * Initialize counters and send once state flag
      */
     serverDebugCounter = 1
-    sendOnce = false
+    var sendOnce = false
 
     /* Transmit data periodically */
     if config.ServerTX == true {
