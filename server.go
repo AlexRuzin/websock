@@ -457,26 +457,10 @@ func (f *NetInstance) parseClientData(rawData []byte, writer http.ResponseWriter
     /* Decompression, if required, has already taken place in handleClientRequest() by parsing the TransmissionUnit flags */
     f.enqueue(rawData)
 
-    /* If there is any data to return, then send it over */
-    var otherFlags FlagVal = 0
-    if f.clientTX.Len() > 0 {
-        defer f.clientTX.Reset()
-
-        var outputStream []byte = f.clientTX.Bytes()
-
-        if (f.service.Flags & FLAG_COMPRESS) > 0 && len(outputStream) > util.GetCompressedSize(outputStream) {
-            otherFlags |= FLAG_COMPRESS
-
-            var streamStatus error = nil
-            outputStream, streamStatus = util.CompressStream(outputStream)
-            if streamStatus != nil {
-                panic(streamStatus)
-            }
-        }
-
-        encrypted, _ := encryptData(outputStream, f.secret, FLAG_DIRECTION_TO_CLIENT, otherFlags, f.ClientIdString)
-        return sendResponse(writer, encrypted)
-    }
+    /*
+     * Write HTTP 200 ok to the stream. Response data is only returned during the FLAG_CHECK_STREAM_DATA
+     *  request. This is the transmit from client to server stream (inbound from clients ONLY)
+     */
     writer.WriteHeader(http.StatusOK)
 
     return nil
