@@ -102,7 +102,7 @@ func returnCommandString(flag FlagVal, config ProtocolConfig) ([]byte, error) {
 
 func (f *NetChannelService) sendDebug(s string) {
     if (f.Flags & FLAG_DEBUG) > 0 {
-        util.DebugOut(s)
+        util.DebugOut("[+] " + s)
     }
 }
 

@@ -77,8 +77,8 @@ type NetInstance struct {
     service                 *NetChannelService
     secret                  []byte
     clientId                []byte
-    clientTX                *bytes.Buffer   /* Data waiting to be transmitted */
-    clientRX                *rxElement        /* Data that is waiting to be read, using a custom FIFO queue */
+    clientTX                *bytes.Buffer       /* Data waiting to be transmitted */
+    clientRX                *rxElement          /* Data that is waiting to be read, using a custom FIFO queue */
     iOSync                  sync.Mutex
 
     connected               bool
@@ -539,6 +539,9 @@ func (f *NetInstance) writeInternal(p []byte) (int, error) {
     return len(p), io.EOF
 }
 
+/*
+ * Queue subsystem for the input elements
+ */
 type rxElement struct {
     data            *bytes.Buffer
 

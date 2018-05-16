@@ -491,7 +491,7 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
         )
 
         decompressed, streamStatus = util.DecompressStream(rawData)
-        if streamStatus != nil {
+        if streamStatus != nil && len(decompressed) == 0 {
             return 0, err
         }
 
@@ -548,8 +548,8 @@ func (f *NetChannelClient) compressEncryptData(rawData []byte, flags FlagVal) (e
     /* Check for high-entropy compression inflation and generate a compression stream */
     var (
         compressionFlag     FlagVal = 0
-        txData              []byte = rawData
         deflateStatus       error = nil
+        txData              = rawData
     )
     if (f.flags & FLAG_COMPRESS) > 0 && len(rawData) > util.GetCompressedSize(rawData) &&
         !((flags & FLAG_TEST_CONNECTION) > 0) /* Compression is not required for testing the circuit */ {
