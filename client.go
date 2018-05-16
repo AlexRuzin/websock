@@ -38,6 +38,7 @@ import (
     "github.com/wsddn/go-ecdh"
 
     "github.com/tatsushid/go-fastping"
+    "sync"
 )
 
 type NetChannelClient struct {
@@ -63,13 +64,8 @@ type NetChannelClient struct {
     flags               FlagVal
     connected           bool
 
-    /* Data coming in from the server */
-    responseData        *bytes.Buffer
-
-    /* Request elements */
-    transport           *http.Transport
-    request             *http.Request
-    getReqKilled        bool
+    /* Data coming in from the server via queue subsystem */
+    responseData        *rxElement
 
     /* Main config */
     config              *ProtocolConfig
@@ -309,23 +305,24 @@ func checkWriteThread(client *NetChannelClient) {
         for {
             client.getReqKilled = false
             read, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
-            if err == io.EOF && read == 0 {
-                /* Connection is closed due to a Write() request */
-                if (client.flags & FLAG_DEBUG) > 0 && read == 0 && client.getReqKilled == false {
-                    util.DebugOut("[" + time.Now().String() + "] FLAG_CHECK_STREAM_DATA: Keep-alive -- no data")
-                }
-                util.Sleep(100 * time.Millisecond)
-                continue
-            } else if read != 0 {
-                /* Data inbound from server */
-                util.Sleep(100 * time.Millisecond)
-                continue
+            if err != nil {
+                /*
+                 * Unexpected stream error, Server did not cleanly terminate so carry on
+                 *  as if nothing happened
+                 */
+                 break
             }
 
+            /*
+             * There is a data response from the server (i/o pending)
+             */
+
             /* Some other error -- i.e. the server terminates the socket */
-            client.Close()
-            return
+            break
         }
+
+        client.Close()
+        return
     } (client)
 }
 
@@ -396,10 +393,6 @@ func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
         return 0, util.RetErrStr("writeInternal(): client not connected")
     }
 
-    if f.transport != nil {
-        f.transport.CancelRequest(f.request)
-    }
-
     _, wrote, err := f.writeStream(p, 0)
     if err != io.EOF {
         return 0, err
@@ -431,9 +424,9 @@ func (f *NetChannelClient) testCircuitRoutine() error {
     return nil
 }
 
-func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int, written int, err error) {
+func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (written int, err error) {
     if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
-        return 0,0, util.RetErrStr("writeStream(): client not connected")
+        return 0, util.RetErrStr("writeStream(): client not connected")
     }
 
     if (flags & FLAG_TERMINATE_CONNECTION) > 0 {
@@ -449,29 +442,17 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (read int,
         genPostStatus       error
     )
     if parmMap, genPostStatus = f.generatePOSTrequest(rawData, flags); genPostStatus != nil {
-        return 0, 0, genPostStatus
+        return 0, genPostStatus
     }
 
     /* Transmit */
-    var body []byte
-    body, sendStatus := f.sendTransmission(f.config.HTTPVerb, f.inputURI, parmMap)
-    if sendStatus == nil && body == nil {
+    _, sendStatus := f.sendTransmission(f.config.HTTPVerb, f.inputURI, parmMap)
+    if sendStatus == nil {
         /* This is the case in which Write() abruptly forces an HTTP channel to close */
-        return 0,0, io.EOF
-    }
-    read = len(body)
-    written = len(rawData)
-
-    if read != 0 {
-        /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
-        if _, err = f.processHTTPresponse(body, flags); err != nil {
-            return 0, 0, err
-        }
-
-        return read, written, io.EOF
+        return 0, io.EOF
     }
 
-    return 0, written, io.EOF
+    return len(rawData), io.EOF
 }
 
 func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (written int, err error) {
@@ -589,90 +570,47 @@ func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err er
     return read, io.EOF
 }
 
-func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[string]string) ([]byte, error) {
-    var (
-        req             *http.Request
-        resp            *http.Response
-        reqError        error
-    )
-    if req, reqError = f.generateHTTPheaders(URI, verb, params); reqError != nil {
+func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[string]string) (respBuffer []byte,
+    reqError error) {
+
+    var httpRequest *http.Request
+    if httpRequest, reqError = f.generateHTTPheaders(URI, verb, params); reqError != nil {
         return nil, reqError
     }
 
     /*
-     * This method invokes a thread which waits for a Write() call, and terminates the read request
-     *  coming from the client to server. Consequently, the only type of request which ought to be
-     *  terminated is a FLAG_CHECK_STREAM_DATA request, which, upon termination, does not contain
-     *  data. If it does contain data, then a Write() was not called
+     * Transmit request and receive response, if any
      */
-    resp, stopStatus := f.waitForWriteTxCancel(req)
-    if resp == nil && stopStatus == nil{
+    var (
+        tr              = &http.Transport{}
+        httpClient      = &http.Client{Transport: tr}
+        httpResponse    *http.Response
+    )
+    if httpResponse, reqError = httpClient.Do(httpRequest); reqError != nil {
         /*
-         * Graceful termination of the FLAG_CHECK_STREAM_DATA request. There is no response, as a
-         *  consequence of the abrupt termination of the stream. There is no data to be returned
+         * Unknown error in request, Logic is to attempt comms until server sends the terminate
+         *  signal FLAG_TERMINATE_CONNECTION
          */
-        return nil, nil
+        return nil, reqError
     }
 
     /*
-     * The FLAG_CHECK_STREAM_DATA request was terminated, but not by force due to Write(), but because
-     *  the server supplemented data on the stream. Check for a normal response
+     * Check for nominal HTTP response fisst
      */
-    if resp.Status != "200 OK" {
+    if httpResponse.Status != "200 OK" {
         return nil, util.RetErrStr("HTTP 200 OK not returned")
     }
-    defer resp.Body.Close()
+    defer httpResponse.Body.Close()
 
-    body, err := ioutil.ReadAll(resp.Body)
+    /*
+     * Check if the body contains any response. If it does, then this data needs to be processed
+     *  by the caller
+     */
+    body, err := ioutil.ReadAll(httpResponse.Body)
     if err != nil {
         return nil, err
     }
     return body, nil
-}
-
-func (f *NetChannelClient) waitForWriteTxCancel(httpRequestInput *http.Request) (*http.Response, error) {
-    var (
-        tr                  = &http.Transport{}
-        httpClient          = &http.Client{Transport: tr}
-        respIo              = make(chan *http.Response)
-    )
-    f.request               = httpRequestInput
-    f.transport             = tr
-
-    go func (httpRequest *http.Request) {
-        util.Sleep(10 * time.Millisecond)
-        var (
-            response        *http.Response
-            rxStatus        error = nil
-        )
-        if response, rxStatus = httpClient.Do(httpRequest); rxStatus != nil {
-            /* If cancelled, the channel will close and the HTTP request will be cleaned up */
-            close(respIo)
-            return
-        }
-        /*
-         * In the instance of a regular transmit, this object should be passed, and this method
-         *  should ultimately server no purpose.
-         */
-        respIo <- response
-    } (f.request)
-
-    resp, ok := <- respIo
-    if !ok {
-        /* Forced write request -- the request is cancelled, so permit another transmit */
-        f.transport    = nil
-        f.request      = nil
-        f.getReqKilled = true
-        return nil, nil
-    } else {
-        defer close(respIo)
-    }
-
-    /*
-     * The timeout for FLAG_CHECK_STREAM_DATA was not reached, and the server has transmitted data
-     *  in the meantime, meaning a response body should exist.
-     */
-    return resp, nil
 }
 
 func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
@@ -719,6 +657,83 @@ func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
     req.Header.Set("Host", parsedURI.Hostname())
 
     return req, nil
+}
+
+/*
+ * Response queue mechanism for the client
+ *  FIXME -- merge this with the server.go implementation
+ */
+type rxElement struct {
+    data            *bytes.Buffer
+
+    next            *rxElement
+    last            *rxElement
+}
+var clientRespSync  sync.Mutex
+
+func (f *NetChannelClient) enqueue(p []byte) {
+    clientRespSync.Lock()
+    defer clientRespSync.Unlock()
+
+    if f.responseData == nil {
+        f.responseData = &rxElement{
+            data:   bytes.NewBuffer(p),
+            next:   nil,
+            last:   nil,
+        }
+
+        return
+    }
+
+    f.responseData.last = &rxElement{
+        data:   bytes.NewBuffer(p),
+        next:   f.responseData,
+        last:   nil,
+    }
+
+    f.responseData = f.responseData.last
+}
+
+func (f *NetChannelClient) dequeue() ([]byte, error) {
+    clientRespSync.Lock()
+    defer clientRespSync.Unlock()
+
+    if f.responseData == nil {
+        return nil, nil
+    }
+
+    if f.responseData.next == nil {
+        out := f.responseData.data.Bytes()
+        f.responseData = nil
+        return out, nil
+    }
+
+    endElement := f.responseData
+    for ;endElement.next != nil; endElement = endElement.next {}
+    var out = endElement.data.Bytes()
+    t := endElement.last
+    t.next = nil
+
+    return out, nil
+
+}
+
+func (f *NetChannelClient) queueLen() int {
+    clientRespSync.Lock()
+    defer clientRespSync.Unlock()
+
+    if f.responseData == nil {
+        return 0
+    }
+
+    q := f.responseData
+    total := 0
+    for q != nil {
+        total += q.data.Len()
+        q = q.next
+    }
+
+    return total
 }
 
 /* EOF */
