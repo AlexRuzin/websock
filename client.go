@@ -65,7 +65,7 @@ type NetChannelClient struct {
     connected           bool
 
     /* Data coming in from the server via queue subsystem */
-    responseData        *rxElement
+    responseData        *clientRx
 
     /* Main config */
     config              *ProtocolConfig
@@ -663,11 +663,11 @@ func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
  * Response queue mechanism for the client
  *  FIXME -- merge this with the server.go implementation
  */
-type rxElement struct {
+type clientRx struct {
     data            *bytes.Buffer
 
-    next            *rxElement
-    last            *rxElement
+    next            *clientRx
+    last            *clientRx
 }
 var clientRespSync  sync.Mutex
 
@@ -676,7 +676,7 @@ func (f *NetChannelClient) enqueue(p []byte) {
     defer clientRespSync.Unlock()
 
     if f.responseData == nil {
-        f.responseData = &rxElement{
+        f.responseData = &clientRx{
             data:   bytes.NewBuffer(p),
             next:   nil,
             last:   nil,
@@ -685,7 +685,7 @@ func (f *NetChannelClient) enqueue(p []byte) {
         return
     }
 
-    f.responseData.last = &rxElement{
+    f.responseData.last = &clientRx{
         data:   bytes.NewBuffer(p),
         next:   f.responseData,
         last:   nil,
