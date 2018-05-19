@@ -16,7 +16,7 @@
   "ClientTXDataMin": 16,
   "ClientTXDataMax": 64,
   "ClientTXDataStatic": true,
-  "ClientTxOnce":true,
+  "ClientTxOnce":false,
   "ClientTxCount":0,
 
   "ServerTX": false,
@@ -25,7 +25,7 @@
   "ServerTXDataMin": 16,
   "ServerTXDataMax": 64,
   "ServerTXDataStatic": true,
-  "ClientTxOnce":true,
+  "ClientTxOnce":false,
   "ServerTxCount":0,
 
   "ModuleName": "websock"
