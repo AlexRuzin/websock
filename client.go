@@ -82,22 +82,49 @@ type transferUnit struct {
     Flags               FlagVal
 }
 
+/*
+ * Read only one element in the read queue, which is populated automatically
+ *  once a response is given by the server to the client.
+ *
+ * A Read request may be issued by the client by using the internal function
+ *  readStream().
+ */
 func (f *NetChannelClient) Read(p []byte) (read int, err error) {
-    read, err = f.readInternal(p)
-    if err != io.EOF {
-        return 0, err
+    if f.connected == false {
+        return 0, util.RetErrStr("readInternal(): client not connected")
     }
 
-    return
+    if f.Len() == 0 {
+        return 0, io.EOF
+    }
+
+    /*
+     * Read from the response queue
+     */
+    queueData, err := f.dequeue()
+    if err != nil {
+        return 0, err
+    }
+    copy(p, queueData)
+
+    return len(queueData), io.EOF
 }
 
+/*
+ * Create's a Write() stream by generating a POST request to the server, in
+ *  parallel to the inbound stream
+ */
 func (f *NetChannelClient) Write(p []byte) (written int, err error) {
-    written, err = f.writeInternal(p)
+    if f.connected == false {
+        return 0, util.RetErrStr("writeInternal(): client not connected")
+    }
+
+    wrote, err := f.transmitHttpRequest(p, 0)
     if err != io.EOF {
         return 0, err
     }
 
-    return written, io.EOF
+    return wrote, io.EOF
 }
 
 func (f *NetChannelClient) Len() int {
@@ -107,7 +134,7 @@ func (f *NetChannelClient) Len() int {
         return 0
     }
 
-    return f.responseData.Len()
+    return f.queueLen()
 }
 
 func (f *NetChannelClient) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
@@ -177,12 +204,9 @@ func BuildChannel(gateURI string, flags FlagVal) (*NetChannelClient, error) {
         host:               mainURL.Host,
         secret:             nil,
         responseData:       nil,
-        transport:          nil,
-        request:            nil,
         config:             tmpConfig,
         testCircuit:        false,
         pingServer:         false,
-        getReqKilled:       false,
     }
 
     if (flags & FLAG_TEST_CIRCUIT) > 0 {
@@ -303,22 +327,39 @@ func checkWriteThread(client *NetChannelClient) {
      */
     go func (client *NetChannelClient) {
         for {
-            client.getReqKilled = false
-            read, _, err := client.writeStream(nil, FLAG_CHECK_STREAM_DATA)
-            if err != nil {
-                /*
-                 * Unexpected stream error, Server did not cleanly terminate so carry on
-                 *  as if nothing happened
-                 */
-                 break
+            var (
+                rawData             []byte
+                parmMap             = make(map[string]string)
+                httpRequest         *http.Request
+                response            *http.Response
+                tr                  = &http.Transport{}
+                httpClient          = &http.Client{Transport: tr}
+                body                []byte
+                err                 error
+            )
+            rawData, _ = returnCommandString(FLAG_CHECK_STREAM_DATA, *client.config)
+            if parmMap, err = client.generatePOSTrequest(rawData, FLAG_CHECK_STREAM_DATA);
+                err != nil {
+                break
             }
 
-            /*
-             * There is a data response from the server (i/o pending)
-             */
+            /* Generate headers from parameter map */
+            if httpRequest, err = client.generateHTTPheaders(client.inputURI, client.config.HTTPVerb, parmMap); err != nil {
+                break
+            }
 
-            /* Some other error -- i.e. the server terminates the socket */
-            break
+            /* Write to stream */
+            if response, err = httpClient.Do(httpRequest); err != nil || response.Status != "200 OK" {
+                break
+            }
+
+            body, err = ioutil.ReadAll(response.Body)
+            if len(body) > 0 {
+                /* Write to response queue */
+                client.enqueue(body)
+            }
+
+            response.Body.Close()
         }
 
         client.Close()
@@ -332,19 +373,40 @@ func (f *NetChannelClient) initializePKE() (error) {
      */
     var ( /* Output reserved for keypair/post request generate method */
         curve                   ecdh.ECDH
-        request                 map[string]string
+        paramaterMap            map[string]string
         curveStatus             error = nil
         clientPrivateKey        crypto.PrivateKey
+        response                *http.Response
+        tr                      = &http.Transport{}
+        httpClient              = &http.Client{Transport: tr}
     )
-    curve, request, clientPrivateKey, curveStatus = f.generateCurvePostRequest()
+    curve, paramaterMap, clientPrivateKey, curveStatus = f.generateCurvePostRequest()
     if curveStatus != nil {
         return curveStatus
     }
 
     /* Perform HTTP TX, receive the public key from the server */
-    body, initStatus := f.sendTransmission(f.config.HTTPVerb/* POST */, f.inputURI, request)
-    if initStatus != nil {
-        return initStatus
+    request, reqStatus := f.generateHTTPheaders(f.inputURI, f.config.HTTPVerb, paramaterMap)
+    if reqStatus != nil {
+        return reqStatus
+    }
+
+    response, reqStatus = httpClient.Do(request)
+    if reqStatus != nil {
+        return reqStatus
+    }
+
+    /*
+     * Read from stream
+     */
+    if response.Status != "200 OK" {
+        return util.RetErrStr("200 OK not returned by server during PKE initialization")
+    }
+    defer response.Body.Close()
+
+    body, err := ioutil.ReadAll(response.Body)
+    if err != nil {
+        return err
     }
     if len(body) == 0 {
         return util.RetErrStr("server has returned a null length public key")
@@ -353,9 +415,8 @@ func (f *NetChannelClient) initializePKE() (error) {
     /*
      * Decode the public key returned by the server and create a secret key
      */
-    f.secret, initStatus = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve)
-    if initStatus != nil {
-        return initStatus
+    if f.secret, err = f.decodeServerPubkeyGenSecret(body, clientPrivateKey, curve); err != nil {
+        return err
     }
 
     if (f.flags & FLAG_DEBUG) > 0 {
@@ -367,64 +428,33 @@ func (f *NetChannelClient) initializePKE() (error) {
 }
 
 func (f *NetChannelClient) Close() {
-    f.writeStream(nil, FLAG_TERMINATE_CONNECTION)
+    f.transmitHttpRequest(nil, FLAG_TERMINATE_CONNECTION)
     f.connected = false
 }
 
-func (f *NetChannelClient) readInternal(p []byte) (int, error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("readInternal(): client not connected")
-    }
-
-    if f.Len() == 0 {
-        return 0, io.EOF
-    }
-
-    read, err := f.readStream(p, 0)
-    if err != io.EOF {
-        return 0, err
-    }
-
-    return read, io.EOF
-}
-
-func (f *NetChannelClient) writeInternal(p []byte) (int, error) {
-    if f.connected == false {
-        return 0, util.RetErrStr("writeInternal(): client not connected")
-    }
-
-    _, wrote, err := f.writeStream(p, 0)
-    if err != io.EOF {
-        return 0, err
-    }
-
-    return wrote, io.EOF
-}
-
 func (f *NetChannelClient) testCircuitRoutine() error {
-    if _, _, err := f.writeStream(nil, FLAG_TEST_CONNECTION); err != io.EOF {
+    if _, err := f.transmitHttpRequest(nil, FLAG_TEST_CONNECTION); err != io.EOF {
         return err
     }
 
-    if f.responseData.Len() == 0 {
+    if f.queueLen() == 0 {
         return util.RetErrStr("testCircuit() failed on the server side")
     }
 
-    var responseData = make([]byte, f.responseData.Len())
-    read, err := f.readStream(responseData, FLAG_TEST_CONNECTION)
-    if err != io.EOF || read != len(f.config.TestStream) {
+    read, err := f.dequeue()
+    if err != io.EOF || len(read) != len(f.config.TestStream) {
         return util.RetErrStr("testCircuit() invalid response from server side")
     }
 
-    if !util.IsAsciiPrintable(string(responseData)) ||
-        strings.Compare(string(responseData), f.config.TestStream) != 0 {
+    if !util.IsAsciiPrintable(string(read)) ||
+        strings.Compare(string(read), f.config.TestStream) != 0 {
         return util.RetErrStr("testCircuit() data corruption from server side")
     }
 
     return nil
 }
 
-func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (written int, err error) {
+func (f *NetChannelClient) transmitHttpRequest(rawData []byte, flags FlagVal) (written int, err error) {
     if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
         return 0, util.RetErrStr("writeStream(): client not connected")
     }
@@ -436,7 +466,13 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (written i
         rawData, _ = returnCommandString(FLAG_CHECK_STREAM_DATA, *f.config)
     }
 
-    /* Generate parameters */
+    /*
+     * Generates a request. This may be a FLAG_CHECK_STREAM_DATA request, or a generic
+     *  write request to the transmit stream.
+     *
+     * The returnCommandString() method, when invoked (above), generates an ASCII string
+     *  that can be configured in shared.go.
+     */
     var (
         parmMap             = make(map[string]string)
         genPostStatus       error
@@ -445,24 +481,66 @@ func (f *NetChannelClient) writeStream(rawData []byte, flags FlagVal) (written i
         return 0, genPostStatus
     }
 
-    /* Transmit */
-    _, sendStatus := f.sendTransmission(f.config.HTTPVerb, f.inputURI, parmMap)
-    if sendStatus == nil {
-        /* This is the case in which Write() abruptly forces an HTTP channel to close */
-        return 0, io.EOF
+    /* Generate headers from parameter map */
+    var httpRequest *http.Request
+    if httpRequest, err = f.generateHTTPheaders(f.inputURI, f.config.HTTPVerb, parmMap); err != nil {
+        return 0, err
+    }
+
+    /*
+     * Transmit request and receive response, if any
+     */
+    var (
+        tr              = &http.Transport{}
+        httpClient      = &http.Client{Transport: tr}
+        httpResponse    *http.Response
+    )
+    if httpResponse, err = httpClient.Do(httpRequest); err != nil {
+        /*
+         * Unknown error in request, Logic is to attempt comms until server sends the terminate
+         *  signal FLAG_TERMINATE_CONNECTION
+         */
+        return 0, err
+    }
+
+    /*
+     * Check for nominal HTTP response first1
+     */
+    if httpResponse.Status != "200 OK" {
+        return 0, util.RetErrStr("HTTP 200 OK not returned")
+    }
+    defer httpResponse.Body.Close()
+
+    /*
+     * There should NOT be a response inbound in this stream, only 200 OK. Response are returned
+     *  when a FLAG_CHECK_STREAM_DATA request is transmitted via readStream()
+     */
+    if err = func (resp *http.Response) error {
+        body, error := ioutil.ReadAll(resp.Body)
+        if error != io.EOF {
+            return util.RetErrStr("Unexpected response from mangled response buffer during write")
+        }
+
+        if len(body) > 0 {
+            return util.RetErrStr("Server returned response during write I/O request")
+        }
+
+        return io.EOF
+    } (httpResponse); err != nil {
+        return len(rawData), err
     }
 
     return len(rawData), io.EOF
 }
 
-func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (written int, err error) {
+func (f *NetChannelClient) decryptAndWriteResponse(body []byte, flags FlagVal) (err error) {
     /* Decode the body (TransferUnit) and store in NetChannelClient.ResponseData */
     clientId, rawData, _, err := decryptData(string(body), f.secret)
     if err != nil {
-        return 0, err
+        return err
     }
     if strings.Compare(clientId, f.clientIdString) != 0 {
-        return 0, util.RetErrStr("Invalid server response")
+        return util.RetErrStr("Invalid server response")
     }
 
     if (f.flags & FLAG_COMPRESS) > 0 && !((flags & FLAG_TEST_CONNECTION) > 0) {
@@ -473,21 +551,15 @@ func (f *NetChannelClient) processHTTPresponse(body []byte, flags FlagVal) (writ
 
         decompressed, streamStatus = util.DecompressStream(rawData)
         if streamStatus != nil && len(decompressed) == 0 {
-            return 0, err
+            return err
         }
 
         rawData = decompressed
     }
 
-    /* Write either the compressed or decompressed stream */
-    if f.responseData == nil {
-        f.responseData = &bytes.Buffer{}
-    }
-    if written, err = f.responseData.Write(rawData); err != nil {
-        return written, err
-    }
-
-    return written, nil
+    /* Write either the compressed or decompressed stream queue */
+    f.enqueue(rawData)
+    return nil
 }
 
 func (f *NetChannelClient) generatePOSTrequest(rawData []byte, flags FlagVal) (map[string]string, error) {
@@ -549,68 +621,6 @@ func (f *NetChannelClient) compressEncryptData(rawData []byte, flags FlagVal) (e
     }
 
     return
-}
-
-func (f *NetChannelClient) readStream(p []byte, flags FlagVal) (read int, err error) {
-    if !((flags & FLAG_TEST_CONNECTION) > 0) && f.connected == false {
-        return 0, util.RetErrStr("readStream: client not connected")
-    }
-
-    if f.responseData == nil {
-        return 0, io.EOF
-    }
-
-    read = f.responseData.Len()
-    if read == 0 {
-        return 0, io.EOF
-    }
-
-    f.responseData.Read(p)
-
-    return read, io.EOF
-}
-
-func (f* NetChannelClient) sendTransmission(verb string, URI string, params map[string]string) (respBuffer []byte,
-    reqError error) {
-
-    var httpRequest *http.Request
-    if httpRequest, reqError = f.generateHTTPheaders(URI, verb, params); reqError != nil {
-        return nil, reqError
-    }
-
-    /*
-     * Transmit request and receive response, if any
-     */
-    var (
-        tr              = &http.Transport{}
-        httpClient      = &http.Client{Transport: tr}
-        httpResponse    *http.Response
-    )
-    if httpResponse, reqError = httpClient.Do(httpRequest); reqError != nil {
-        /*
-         * Unknown error in request, Logic is to attempt comms until server sends the terminate
-         *  signal FLAG_TERMINATE_CONNECTION
-         */
-        return nil, reqError
-    }
-
-    /*
-     * Check for nominal HTTP response fisst
-     */
-    if httpResponse.Status != "200 OK" {
-        return nil, util.RetErrStr("HTTP 200 OK not returned")
-    }
-    defer httpResponse.Body.Close()
-
-    /*
-     * Check if the body contains any response. If it does, then this data needs to be processed
-     *  by the caller
-     */
-    body, err := ioutil.ReadAll(httpResponse.Body)
-    if err != nil {
-        return nil, err
-    }
-    return body, nil
 }
 
 func (f *NetChannelClient) generateHTTPheaders(URI string, verb string,
