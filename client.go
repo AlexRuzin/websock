@@ -252,6 +252,11 @@ func (f *NetChannelClient) InitializeCircuit() error {
     }
 
     /*
+     * Flush any queue read data
+     */
+    //f.queueFlush()
+
+    /*
      * Keep sending POSTs until some data is written to the controller write interface
      */
     checkWriteThread(f)
@@ -355,8 +360,10 @@ func checkWriteThread(client *NetChannelClient) {
 
             body, err = ioutil.ReadAll(response.Body)
             if len(body) > 0 {
-                /* Write to response queue */
-                client.enqueue(body)
+                /* Write to response queue -- decrypt/parse first */
+                if decryptStatus := client.decryptAndWriteResponse(body, 0); decryptStatus != nil {
+                    break
+                }
             }
 
             response.Body.Close()
@@ -517,20 +524,16 @@ func (f *NetChannelClient) transmitHttpRequest(rawData []byte, flags FlagVal) (w
      */
     if err = func (resp *http.Response) error {
         body, error := ioutil.ReadAll(resp.Body)
-        if error != io.EOF {
+        if error != nil || len(body) != 0 {
             return util.RetErrStr("Unexpected response from mangled response buffer during write")
         }
 
-        if len(body) > 0 {
-            return util.RetErrStr("Server returned response during write I/O request")
-        }
-
         return io.EOF
-    } (httpResponse); err != nil {
-        return len(rawData), err
+    } (httpResponse); err == io.EOF {
+        return len(rawData), io.EOF
     }
 
-    return len(rawData), io.EOF
+    return len(rawData), err
 }
 
 func (f *NetChannelClient) decryptAndWriteResponse(body []byte, flags FlagVal) (err error) {
@@ -744,6 +747,18 @@ func (f *NetChannelClient) queueLen() int {
     }
 
     return total
+}
+
+func (f *NetChannelClient) queueFlush() {
+    clientRespSync.Lock()
+    defer clientRespSync.Unlock()
+
+    for {
+        e, _ := f.dequeue()
+        if e == nil {
+            break
+        }
+    }
 }
 
 /* EOF */
