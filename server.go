@@ -152,7 +152,26 @@ func (f *NetInstance) Len() int {
 }
 
 func (f *NetInstance) Wait(timeoutMilliseconds time.Duration) (responseLen int, err error) {
-    return f.waitInternal(timeoutMilliseconds)
+    responseLen = 0
+    err = WAIT_TIMEOUT_REACHED
+
+    for i := timeoutMilliseconds / 100; i != 0; i -= 1 {
+        if f.connected == false {
+            err = WAIT_CLOSED
+            responseLen = -1
+            break
+        }
+
+        if f.Len() > 0 {
+            responseLen = f.Len()
+            err = WAIT_DATA_RECEIVED
+            break
+        }
+
+        util.Sleep(100 * time.Millisecond)
+    }
+
+    return
 }
 
 func (f *NetInstance) Read(p []byte) (read int, err error) {
@@ -186,11 +205,10 @@ func (f *NetChannelService) startListeners() {
             }
 
             svc.clientMap[client.ClientIdString] = client
+            client.connected = true
             if err := svc.IncomingHandler(client, svc); err != nil {
                 svc.closeClient(client)
             }
-
-            client.connected = true
         }
 
         panic(util.RetErrStr("inbound client channel has been terminated"))
